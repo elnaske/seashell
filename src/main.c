@@ -17,6 +17,8 @@
 #define MIN(x, y) (x) < (y) ? (x) : (y)
 #define MAX_ARGS 8
 
+pid_t fg_pgid = -1;
+
 typedef struct {
     char **argv;
     size_t argc;
@@ -123,18 +125,23 @@ void exec_command(Command cmd) {
         }
 
         if (pid == 0) {
+            if (setpgid(pid, pid) < 0) {
+                printf("Setpgid error: %s\n", strerror(errno));
+                exit(errno);
+            }
+
             if (execvp(cmd.argv[0], cmd.argv) < 0) {
                 printf("Execve error: %s\n", strerror(errno));
                 exit(errno);
             }
-
-            exit(0);
         }
 
         if (!cmd.run_in_bg) {
+            fg_pgid = pid;
             if (waitpid(pid, NULL, 0) < 0) {
                 printf("Waitpid error: %s\n", strerror(errno));
             }
+            fg_pgid = -1;
         } else {
             printf("[%d]", pid);
             for (size_t i = 0; i < cmd.argc; i++) {
@@ -147,6 +154,7 @@ void exec_command(Command cmd) {
 
 int main() {
     install_signal_handler(SIGCHLD, &reap_children);
+    install_signal_handler(SIGINT, &sigint_handler);
 
     while (1) {
         printf("seashell> ");

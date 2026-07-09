@@ -8,6 +8,8 @@
 
 #include "sighandlers.h"
 
+extern pid_t fg_pgid;
+
 void install_signal_handler(int signum, void (*handler)(int)) {
     struct sigaction act = {0};
     act.sa_handler = handler;
@@ -37,6 +39,15 @@ void reap_children(int sig) {
     }
 
     errno = saved_errno;
+
+    return;
+}
+
+void sigint_handler(int sig) {
+    if (fg_pgid >= 0) {
+        kill(-fg_pgid, sig);
+        fg_pgid = -1;
+    }
 
     return;
 }
