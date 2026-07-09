@@ -79,7 +79,8 @@ int parse_line(char *line, size_t len, Command *cmd_out) {
     size_t token_cnt;
     char **tokens = tokenize_line(line, len, &token_cnt);
 
-    if (!tokens) {
+    if (!tokens || !token_cnt) {
+        free(tokens);
         return -1;
     }
 
@@ -161,12 +162,10 @@ int main() {
         Command cmd;
         if (parse_line(line, len, &cmd) < 0) {
             free(line);
-            return -1;
+            continue;
         }
 
-        if (cmd.argc) {
-            exec_command(cmd);
-        }
+        exec_command(cmd);
 
         free_cmd(&cmd);
         free(line);
