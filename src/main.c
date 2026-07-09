@@ -1,5 +1,8 @@
+#define _GNU_SOURCE
+
 #include <ctype.h>
 #include <errno.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -9,12 +12,15 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include "sighandlers.h"
+
 #define MIN(x, y) (x) < (y) ? (x) : (y)
 #define MAX_ARGS 8
 
 typedef struct {
     char **argv;
     size_t argc;
+    bool run_in_bg;
 } Command;
 
 static inline void free_cmd(Command *cmd) {
@@ -61,7 +67,7 @@ char **tokenize_line(char *line, size_t len, size_t *cnt_out) {
     if (cnt_out) {
         *cnt_out = token_cnt;
     }
-    
+
     tokens[token_cnt] = NULL;
 
     return tokens;
@@ -76,10 +82,20 @@ int parse_line(char *line, size_t len, Command *cmd_out) {
     if (!tokens) {
         return -1;
     }
-    
+
     // TODO: pipes, redirection, etc.
 
-    Command cmd = {.argv = tokens, .argc = token_cnt};
+    bool run_in_bg = *(tokens[token_cnt - 1]) == '&';
+    if (run_in_bg) {
+        tokens[--token_cnt] = NULL;
+    }
+
+    Command cmd = {
+        .argv = tokens,
+        .argc = token_cnt,
+        .run_in_bg = run_in_bg,
+    };
+
     *cmd_out = cmd;
 
     return 0;
@@ -114,13 +130,23 @@ void exec_command(Command cmd) {
             exit(0);
         }
 
-        if (waitpid(pid, NULL, 0) < 0) {
-            printf("Waitpid error: %s\n", strerror(errno));
+        if (!cmd.run_in_bg) {
+            if (waitpid(pid, NULL, 0) < 0) {
+                printf("Waitpid error: %s\n", strerror(errno));
+            }
+        } else {
+            printf("[%d]", pid);
+            for (size_t i = 0; i < cmd.argc; i++) {
+                printf(" %s", cmd.argv[i]);
+            }
+            printf("\n");
         }
     }
 }
 
 int main() {
+    install_signal_handler(SIGCHLD, &reap_children);
+
     while (1) {
         printf("seashell> ");
 
