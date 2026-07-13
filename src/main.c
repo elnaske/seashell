@@ -21,6 +21,7 @@
 #define COL_BLUE "\033[34m"
 #define COL_CLR "\033[0m"
 
+pid_t shell_pgid = -1;
 pid_t fg_pgid = -1;
 char cwd[100];
 
@@ -140,12 +141,16 @@ int try_builtin(Command cmd) {
         pid_t pid = strtol(cmd.argv[1], NULL, 10);
 
         kill(pid, SIGCONT);
-        
+
         fg_pgid = pid;
         if (waitpid(pid, NULL, WUNTRACED) < 0) {
             printf("Waitpid error: %s\n", strerror(errno));
         }
         fg_pgid = -1;
+
+        if (tcsetpgrp(STDIN_FILENO, shell_pgid) < 0) {
+            printf("Tcsetpgrp error: %s\n", strerror(errno));
+        }
 
         return 1;
     }
@@ -164,7 +169,7 @@ void exec_command(Command cmd) {
         }
 
         if (pid == 0) {
-            if (setpgid(pid, pid) < 0) {
+            if (setpgid(0, 0) < 0) {
                 printf("Setpgid error: %s\n", strerror(errno));
                 exit(errno);
             }
@@ -175,12 +180,23 @@ void exec_command(Command cmd) {
             }
         }
 
+        if (setpgid(pid, pid) < 0) {
+            printf("Setpgid error: %s\n", strerror(errno));
+        }
+
         if (!cmd.run_in_bg) {
+            if (tcsetpgrp(STDIN_FILENO, pid) < 0) {
+                printf("Tcsetpgrp error: %s\n", strerror(errno));
+            }
             fg_pgid = pid;
             if (waitpid(pid, NULL, WUNTRACED) < 0) {
                 printf("Waitpid error: %s\n", strerror(errno));
             }
             fg_pgid = -1;
+
+            if (tcsetpgrp(STDIN_FILENO, shell_pgid) < 0) {
+                printf("Tcsetpgrp error: %s\n", strerror(errno));
+            }
         } else {
             printf("[%d]", pid);
             for (size_t i = 0; i < cmd.argc; i++) {
@@ -191,24 +207,28 @@ void exec_command(Command cmd) {
     }
 }
 
-
 int main() {
-    install_signal_handler(SIGCHLD, &reap_children);
-    install_signal_handler(SIGINT, &keyboard_interrupt);
-    install_signal_handler(SIGTSTP, &keyboard_interrupt);
+    shell_pgid = getpgrp();
 
     if (!getcwd(cwd, 100)) {
         memcpy(cwd, "???", 4);
     }
 
+    install_signal_handler(SIGCHLD, &reap_children);
+    install_signal_handler(SIGINT, &keyboard_interrupt);
+    install_signal_handler(SIGTSTP, &keyboard_interrupt);
+    install_signal_handler(SIGTTOU, SIG_IGN);
+    install_signal_handler(SIGTTIN, SIG_IGN);
+
     while (1) {
-        printf(COL_GREEN "seashell" COL_CLR ":" COL_BLUE "%s" COL_CLR "$ ",cwd);
+        printf(COL_GREEN "seashell" COL_CLR ":" COL_BLUE "%s" COL_CLR "$ ", cwd);
 
         char *line = NULL;
         size_t len = 0;
         ssize_t n_read = getline(&line, &len, stdin);
 
         if (n_read == -1) {
+            free(line);
             return -1;
         }
 
