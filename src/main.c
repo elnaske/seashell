@@ -114,7 +114,7 @@ int try_builtin(Command cmd) {
         free(cmd.argv);
         exit(0);
     }
-    
+
     if (strcmp(cmd.argv[0], "cd") == 0) {
         char *dst = cmd.argc > 1 ? cmd.argv[1] : getenv("HOME");
         if (!dst) return 0;
@@ -127,6 +127,25 @@ int try_builtin(Command cmd) {
         if (!getcwd(cwd, 100)) {
             memcpy(cwd, "???", 4);
         }
+
+        return 1;
+    }
+
+    if (strcmp(cmd.argv[0], "fg") == 0) {
+        if (cmd.argc == 1) {
+            printf("TODO: most recent job");
+            return 1;
+        }
+
+        pid_t pid = strtol(cmd.argv[1], NULL, 10);
+
+        kill(pid, SIGCONT);
+        
+        fg_pgid = pid;
+        if (waitpid(pid, NULL, WUNTRACED) < 0) {
+            printf("Waitpid error: %s\n", strerror(errno));
+        }
+        fg_pgid = -1;
 
         return 1;
     }
