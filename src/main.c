@@ -17,7 +17,12 @@
 #define MIN(x, y) (x) < (y) ? (x) : (y)
 #define MAX_ARGS 8
 
+#define COL_GREEN "\033[32m"
+#define COL_BLUE "\033[34m"
+#define COL_CLR "\033[0m"
+
 pid_t fg_pgid = -1;
+char cwd[100];
 
 typedef struct {
     char **argv;
@@ -109,7 +114,22 @@ int try_builtin(Command cmd) {
         free(cmd.argv);
         exit(0);
     }
-    // TODO: other builtins
+    
+    if (strcmp(cmd.argv[0], "cd") == 0) {
+        char *dst = cmd.argc > 1 ? cmd.argv[1] : getenv("HOME");
+        if (!dst) return 0;
+
+        if (chdir(dst) < 0) {
+            printf("Chdir error: %s\n", strerror(errno));
+            return 1;
+        }
+
+        if (!getcwd(cwd, 100)) {
+            memcpy(cwd, "???", 4);
+        }
+
+        return 1;
+    }
 
     return 0;
 }
@@ -152,13 +172,18 @@ void exec_command(Command cmd) {
     }
 }
 
+
 int main() {
     install_signal_handler(SIGCHLD, &reap_children);
     install_signal_handler(SIGINT, &keyboard_interrupt);
     install_signal_handler(SIGTSTP, &keyboard_interrupt);
 
+    if (!getcwd(cwd, 100)) {
+        memcpy(cwd, "???", 4);
+    }
+
     while (1) {
-        printf("seashell> ");
+        printf(COL_GREEN "seashell" COL_CLR ":" COL_BLUE "%s" COL_CLR "$ ",cwd);
 
         char *line = NULL;
         size_t len = 0;
