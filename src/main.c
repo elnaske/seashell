@@ -138,7 +138,7 @@ void exec_command(Command cmd) {
 
         if (!cmd.run_in_bg) {
             fg_pgid = pid;
-            if (waitpid(pid, NULL, 0) < 0) {
+            if (waitpid(pid, NULL, WUNTRACED) < 0) {
                 printf("Waitpid error: %s\n", strerror(errno));
             }
             fg_pgid = -1;
@@ -154,7 +154,8 @@ void exec_command(Command cmd) {
 
 int main() {
     install_signal_handler(SIGCHLD, &reap_children);
-    install_signal_handler(SIGINT, &sigint_handler);
+    install_signal_handler(SIGINT, &keyboard_interrupt);
+    install_signal_handler(SIGTSTP, &keyboard_interrupt);
 
     while (1) {
         printf("seashell> ");

@@ -30,6 +30,7 @@ void reap_children(int sig) {
     int saved_errno = errno;
     pid_t pid;
 
+    // TODO: defer to end of main loop (set global var)
     while ((pid = waitpid(-1, NULL, WNOHANG)) > 0) {
         printf("Reaped process %d\n", pid);
     }
@@ -43,7 +44,9 @@ void reap_children(int sig) {
     return;
 }
 
-void sigint_handler(int sig) {
+void keyboard_interrupt(int sig) {
+    (void)sig;
+
     if (fg_pgid >= 0) {
         kill(-fg_pgid, sig);
         fg_pgid = -1;
