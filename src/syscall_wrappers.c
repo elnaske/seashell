@@ -7,7 +7,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#include "syscalls.h"
+#include "syscall_wrappers.h"
 
 void unix_error(char *msg) {
     printf("%s: %s\n", msg, strerror(errno));
