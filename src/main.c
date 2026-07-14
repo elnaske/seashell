@@ -1,5 +1,8 @@
+#define _GNU_SOURCE
+
 #include <ctype.h>
 #include <errno.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -9,12 +12,17 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include "sighandlers.h"
+
 #define MIN(x, y) (x) < (y) ? (x) : (y)
 #define MAX_ARGS 8
+
+pid_t fg_pgid = -1;
 
 typedef struct {
     char **argv;
     size_t argc;
+    bool run_in_bg;
 } Command;
 
 static inline void free_cmd(Command *cmd) {
@@ -61,7 +69,7 @@ char **tokenize_line(char *line, size_t len, size_t *cnt_out) {
     if (cnt_out) {
         *cnt_out = token_cnt;
     }
-    
+
     tokens[token_cnt] = NULL;
 
     return tokens;
@@ -73,13 +81,24 @@ int parse_line(char *line, size_t len, Command *cmd_out) {
     size_t token_cnt;
     char **tokens = tokenize_line(line, len, &token_cnt);
 
-    if (!tokens) {
+    if (!tokens || !token_cnt) {
+        free(tokens);
         return -1;
     }
-    
+
     // TODO: pipes, redirection, etc.
 
-    Command cmd = {.argv = tokens, .argc = token_cnt};
+    bool run_in_bg = *(tokens[token_cnt - 1]) == '&';
+    if (run_in_bg) {
+        tokens[--token_cnt] = NULL;
+    }
+
+    Command cmd = {
+        .argv = tokens,
+        .argc = token_cnt,
+        .run_in_bg = run_in_bg,
+    };
+
     *cmd_out = cmd;
 
     return 0;
@@ -106,21 +125,38 @@ void exec_command(Command cmd) {
         }
 
         if (pid == 0) {
+            if (setpgid(pid, pid) < 0) {
+                printf("Setpgid error: %s\n", strerror(errno));
+                exit(errno);
+            }
+
             if (execvp(cmd.argv[0], cmd.argv) < 0) {
                 printf("Execve error: %s\n", strerror(errno));
                 exit(errno);
             }
-
-            exit(0);
         }
 
-        if (waitpid(pid, NULL, 0) < 0) {
-            printf("Waitpid error: %s\n", strerror(errno));
+        if (!cmd.run_in_bg) {
+            fg_pgid = pid;
+            if (waitpid(pid, NULL, WUNTRACED) < 0) {
+                printf("Waitpid error: %s\n", strerror(errno));
+            }
+            fg_pgid = -1;
+        } else {
+            printf("[%d]", pid);
+            for (size_t i = 0; i < cmd.argc; i++) {
+                printf(" %s", cmd.argv[i]);
+            }
+            printf("\n");
         }
     }
 }
 
 int main() {
+    install_signal_handler(SIGCHLD, &reap_children);
+    install_signal_handler(SIGINT, &keyboard_interrupt);
+    install_signal_handler(SIGTSTP, &keyboard_interrupt);
+
     while (1) {
         printf("seashell> ");
 
@@ -135,12 +171,10 @@ int main() {
         Command cmd;
         if (parse_line(line, len, &cmd) < 0) {
             free(line);
-            return -1;
+            continue;
         }
 
-        if (cmd.argc) {
-            exec_command(cmd);
-        }
+        exec_command(cmd);
 
         free_cmd(&cmd);
         free(line);
