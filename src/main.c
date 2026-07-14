@@ -13,6 +13,7 @@
 #include <unistd.h>
 
 #include "sighandlers.h"
+#include "syscall_wrappers.h"
 
 #define MIN(x, y) (x) < (y) ? (x) : (y)
 #define MAX_ARGS 8
@@ -120,13 +121,12 @@ int try_builtin(Command cmd) {
         char *dst = cmd.argc > 1 ? cmd.argv[1] : getenv("HOME");
         if (!dst) return 0;
 
-        if (chdir(dst) < 0) {
-            printf("Chdir error: %s\n", strerror(errno));
+        if (Chdir(dst) < 0) {
             return 1;
         }
 
-        if (!getcwd(cwd, 100)) {
-            memcpy(cwd, "???", 4);
+        if (!Getcwd(cwd, 100) && errno == ERANGE) {
+            memcpy(cwd, "../", 4);
         }
 
         return 1;
@@ -143,14 +143,10 @@ int try_builtin(Command cmd) {
         kill(pid, SIGCONT);
 
         fg_pgid = pid;
-        if (waitpid(pid, NULL, WUNTRACED) < 0) {
-            printf("Waitpid error: %s\n", strerror(errno));
-        }
+        Waitpid(pid, NULL, WUNTRACED);
         fg_pgid = -1;
 
-        if (tcsetpgrp(STDIN_FILENO, shell_pgid) < 0) {
-            printf("Tcsetpgrp error: %s\n", strerror(errno));
-        }
+        Tcsetpgrp(STDIN_FILENO, shell_pgid);
 
         return 1;
     }
@@ -162,41 +158,27 @@ void exec_command(Command cmd) {
     bool is_builtin = try_builtin(cmd);
 
     if (!is_builtin) {
-        pid_t pid = fork();
+        pid_t pid = Fork();
         if (pid < 0) {
-            printf("Fork error: %s\n", strerror(errno));
             return;
         }
 
         if (pid == 0) {
-            if (setpgid(0, 0) < 0) {
-                printf("Setpgid error: %s\n", strerror(errno));
-                exit(errno);
-            }
-
-            if (execvp(cmd.argv[0], cmd.argv) < 0) {
-                printf("Execve error: %s\n", strerror(errno));
-                exit(errno);
-            }
+            Setpgid(0, 0);
+            Execvp(cmd.argv[0], cmd.argv);
         }
 
-        if (setpgid(pid, pid) < 0) {
-            printf("Setpgid error: %s\n", strerror(errno));
-        }
+        Setpgid(pid, pid);
 
         if (!cmd.run_in_bg) {
-            if (tcsetpgrp(STDIN_FILENO, pid) < 0) {
-                printf("Tcsetpgrp error: %s\n", strerror(errno));
-            }
+            Tcsetpgrp(STDIN_FILENO, pid);
+
             fg_pgid = pid;
-            if (waitpid(pid, NULL, WUNTRACED) < 0) {
-                printf("Waitpid error: %s\n", strerror(errno));
-            }
+            Waitpid(pid, NULL, WUNTRACED);
             fg_pgid = -1;
 
-            if (tcsetpgrp(STDIN_FILENO, shell_pgid) < 0) {
-                printf("Tcsetpgrp error: %s\n", strerror(errno));
-            }
+            Tcsetpgrp(STDIN_FILENO, shell_pgid);
+
         } else {
             printf("[%d]", pid);
             for (size_t i = 0; i < cmd.argc; i++) {

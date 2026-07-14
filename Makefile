@@ -1,6 +1,6 @@
 CC_FLAGS = -Wall -Wextra -Wpedantic -g -fsanitize=address -fno-omit-frame-pointer
 
-SRC = src/main.c src/sighandlers.c
+SRC = src/main.c src/sighandlers.c src/syscalls.c
 OBJ = $(SRC:.c=.o)
 
 TARGET = seashell
