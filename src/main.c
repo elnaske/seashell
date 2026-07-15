@@ -2,6 +2,7 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -29,6 +30,9 @@ char cwd[100];
 typedef struct {
     char **argv;
     size_t argc;
+    char *stdout_redirect;
+    char *stdin_redirect;
+    bool stdout_append;
     bool run_in_bg;
 } Command;
 
@@ -82,6 +86,16 @@ char **tokenize_line(char *line, size_t len, size_t *cnt_out) {
     return tokens;
 }
 
+static inline bool is_operator(char c) {
+    return c == '<' || c == '>';
+}
+
+typedef enum {
+    PARSE_OK,
+    PARSE_ERR_MALLOC,
+    PARSE_ERR_FILENAME,
+} PARSE_STATUS;
+
 int parse_line(char *line, size_t len, Command *cmd_out) {
     if (!cmd_out) return -1;
 
@@ -90,35 +104,79 @@ int parse_line(char *line, size_t len, Command *cmd_out) {
 
     if (!tokens || !token_cnt) {
         free(tokens);
-        return -1;
+        return PARSE_ERR_MALLOC;
     }
 
-    // TODO: pipes, redirection, etc.
-
-    bool run_in_bg = *(tokens[token_cnt - 1]) == '&';
-    if (run_in_bg) {
-        tokens[--token_cnt] = NULL;
+    char **argv = malloc(sizeof(tokens) * (token_cnt + 1));
+    if (!argv) {
+        free(tokens);
+        return PARSE_ERR_MALLOC;
     }
 
     Command cmd = {
-        .argv = tokens,
-        .argc = token_cnt,
-        .run_in_bg = run_in_bg,
+        .argv = argv,
+        .argc = 0,
+        .stdout_redirect = NULL,
+        .stdin_redirect = NULL,
+        .stdout_append = false,
+        .run_in_bg = *(tokens[token_cnt - 1]) == '&',
     };
+
+    if (cmd.run_in_bg) {
+        tokens[--token_cnt] = NULL;
+    }
+
+    char **next_token = tokens;
+    while (*next_token) {
+        switch (**next_token) {
+        case '>':
+            if (strncmp(*next_token, ">", 2) == 0 || strncmp(*next_token, ">>", 3) == 0) {
+                cmd.stdout_append = strncmp(*next_token, ">>", 3) == 0;
+
+                next_token++;
+                if (*next_token == NULL || is_operator(**next_token)) {
+                    free(tokens);
+                    return PARSE_ERR_FILENAME;
+                }
+                cmd.stdout_redirect = *next_token;
+                break;
+            }
+            continue;
+        case '<':
+            if (strncmp(*next_token, "<", 2) == 0) {
+                next_token++;
+                if (*next_token == NULL || is_operator(**next_token)) {
+                    free(tokens);
+                    return PARSE_ERR_FILENAME;
+                }
+                cmd.stdin_redirect = *next_token;
+                break;
+            }
+            continue;
+        default:
+            cmd.argv[cmd.argc++] = *next_token;
+            break;
+        }
+        next_token++;
+    }
+
+    cmd.argv[cmd.argc] = NULL;
+
+    free(tokens);
 
     *cmd_out = cmd;
 
     return 0;
 }
 
-int try_builtin(Command cmd) {
-    if (strcmp(cmd.argv[0], "exit") == 0) {
-        free(cmd.argv);
+int try_builtin(Command *cmd) {
+    if (strcmp(cmd->argv[0], "exit") == 0) {
+        free_cmd(cmd);
         exit(0);
     }
 
-    if (strcmp(cmd.argv[0], "cd") == 0) {
-        char *dst = cmd.argc > 1 ? cmd.argv[1] : getenv("HOME");
+    if (strcmp(cmd->argv[0], "cd") == 0) {
+        char *dst = cmd->argc > 1 ? cmd->argv[1] : getenv("HOME");
         if (!dst) return 0;
 
         if (Chdir(dst) < 0) {
@@ -132,13 +190,13 @@ int try_builtin(Command cmd) {
         return 1;
     }
 
-    if (strcmp(cmd.argv[0], "fg") == 0) {
-        if (cmd.argc == 1) {
+    if (strcmp(cmd->argv[0], "fg") == 0) {
+        if (cmd->argc == 1) {
             printf("TODO: most recent job");
             return 1;
         }
 
-        pid_t pid = strtol(cmd.argv[1], NULL, 10);
+        pid_t pid = strtol(cmd->argv[1], NULL, 10);
 
         kill(pid, SIGCONT);
 
@@ -154,7 +212,24 @@ int try_builtin(Command cmd) {
     return 0;
 }
 
-void exec_command(Command cmd) {
+int redirect_io(char *file, int io_fd, int o_flag, int s_flag) {
+    int fd;
+    if ((fd = Open(file, o_flag, s_flag)) < 0) {
+        return -1;
+    }
+
+    if (Dup2(fd, io_fd) < 0) {
+        Close(fd);
+        return -1;
+    }
+
+    if (Close(fd) < 0) {
+        return -1;
+    }
+    return 0;
+}
+
+void exec_command(Command *cmd) {
     bool is_builtin = try_builtin(cmd);
 
     if (!is_builtin) {
@@ -165,12 +240,25 @@ void exec_command(Command cmd) {
 
         if (pid == 0) {
             Setpgid(0, 0);
-            Execvp(cmd.argv[0], cmd.argv);
+
+            if (cmd->stdout_redirect) {
+                int o_append = cmd->stdout_append ? O_APPEND : 0;
+                if (redirect_io(cmd->stdout_redirect, STDOUT_FILENO, O_WRONLY | O_CREAT | o_append, S_IRWXU) < 0) {
+                    exit(-1);
+                }
+            }
+            if (cmd->stdin_redirect) {
+                if (redirect_io(cmd->stdin_redirect, STDIN_FILENO, O_RDONLY, 0) < 0) {
+                    exit(-1);
+                }
+            }
+
+            Execvp(cmd->argv[0], cmd->argv);
         }
 
         Setpgid(pid, pid);
 
-        if (!cmd.run_in_bg) {
+        if (!cmd->run_in_bg) {
             Tcsetpgrp(STDIN_FILENO, pid);
 
             fg_pgid = pid;
@@ -181,8 +269,8 @@ void exec_command(Command cmd) {
 
         } else {
             printf("[%d]", pid);
-            for (size_t i = 0; i < cmd.argc; i++) {
-                printf(" %s", cmd.argv[i]);
+            for (size_t i = 0; i < cmd->argc; i++) {
+                printf(" %s", cmd->argv[i]);
             }
             printf("\n");
         }
@@ -220,7 +308,7 @@ int main() {
             continue;
         }
 
-        exec_command(cmd);
+        exec_command(&cmd);
 
         free_cmd(&cmd);
         free(line);

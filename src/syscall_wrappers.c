@@ -1,4 +1,5 @@
 #include <errno.h>
+#include <fcntl.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -79,4 +80,29 @@ char *Getcwd(char *buf, size_t size) {
         }
     }
     return cwd;
+}
+
+int Open(char *file, int o_flag, int s_flag) {
+    int fd;
+    if ((fd = open(file, o_flag, s_flag)) < 0) {
+        unix_error("Open error");
+        return -1;
+    }
+    return fd;
+}
+
+int Close(int fd) {
+    if (close(fd) < 0) {
+        unix_error("Close error");
+        return -1;
+    }
+    return 0;
+}
+
+int Dup2(int fd, int fd2) {
+    if (dup2(fd, fd2) < 0) {
+        unix_error("Redirection error");
+        return -1;
+    }
+    return 0;
 }
