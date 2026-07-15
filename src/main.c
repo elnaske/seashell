@@ -30,9 +30,11 @@ char cwd[100];
 typedef struct {
     char **argv;
     size_t argc;
-    char *stdout_redirect;
     char *stdin_redirect;
+    char *stdout_redirect;
+    char *stderr_redirect;
     bool stdout_append;
+    bool stderr_append;
     bool run_in_bg;
 } Command;
 
@@ -116,9 +118,11 @@ int parse_line(char *line, size_t len, Command *cmd_out) {
     Command cmd = {
         .argv = argv,
         .argc = 0,
-        .stdout_redirect = NULL,
         .stdin_redirect = NULL,
+        .stdout_redirect = NULL,
+        .stderr_redirect = NULL,
         .stdout_append = false,
+        .stderr_append = false,
         .run_in_bg = *(tokens[token_cnt - 1]) == '&',
     };
 
@@ -129,6 +133,17 @@ int parse_line(char *line, size_t len, Command *cmd_out) {
     char **next_token = tokens;
     while (*next_token) {
         switch (**next_token) {
+        case '<':
+            if (strncmp(*next_token, "<", 2) == 0) {
+                next_token++;
+                if (*next_token == NULL || is_operator(**next_token)) {
+                    free(tokens);
+                    return PARSE_ERR_FILENAME;
+                }
+                cmd.stdin_redirect = *next_token;
+                break;
+            }
+            continue;
         case '>':
             if (strncmp(*next_token, ">", 2) == 0 || strncmp(*next_token, ">>", 3) == 0) {
                 cmd.stdout_append = strncmp(*next_token, ">>", 3) == 0;
@@ -142,14 +157,31 @@ int parse_line(char *line, size_t len, Command *cmd_out) {
                 break;
             }
             continue;
-        case '<':
-            if (strncmp(*next_token, "<", 2) == 0) {
+        case '2':
+            if (strncmp(*next_token, "2>", 3) == 0 || strncmp(*next_token, "2>>", 4) == 0) {
+                cmd.stderr_append = strncmp(*next_token, "2>>", 4) == 0;
+                
                 next_token++;
                 if (*next_token == NULL || is_operator(**next_token)) {
                     free(tokens);
                     return PARSE_ERR_FILENAME;
                 }
-                cmd.stdin_redirect = *next_token;
+                cmd.stderr_redirect = *next_token;
+                break;
+            }
+            continue;
+        case '&':
+            if (strncmp(*next_token, "&>", 3) == 0 || strncmp(*next_token, "&>>", 4) == 0) {
+                cmd.stdout_append = strncmp(*next_token, "&>>", 4) == 0;
+                cmd.stderr_append = cmd.stdout_append;
+                
+                next_token++;
+                if (*next_token == NULL || is_operator(**next_token)) {
+                    free(tokens);
+                    return PARSE_ERR_FILENAME;
+                }
+                cmd.stdout_redirect = *next_token;
+                cmd.stderr_redirect = *next_token;
                 break;
             }
             continue;
@@ -244,6 +276,12 @@ void exec_command(Command *cmd) {
             if (cmd->stdout_redirect) {
                 int o_append = cmd->stdout_append ? O_APPEND : 0;
                 if (redirect_io(cmd->stdout_redirect, STDOUT_FILENO, O_WRONLY | O_CREAT | o_append, S_IRWXU) < 0) {
+                    exit(-1);
+                }
+            }
+            if (cmd->stderr_redirect) {
+                int o_append = cmd->stdout_append ? O_APPEND : 0;
+                if (redirect_io(cmd->stderr_redirect, STDERR_FILENO, O_WRONLY | O_CREAT | o_append, S_IRWXU) < 0) {
                     exit(-1);
                 }
             }

@@ -11,7 +11,7 @@
 #include "syscall_wrappers.h"
 
 void unix_error(char *msg) {
-    printf("%s: %s\n", msg, strerror(errno));
+    fprintf(stderr, "%s: %s\n", msg, strerror(errno));
 }
 
 pid_t Fork() {
