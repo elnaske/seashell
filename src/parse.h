@@ -1,15 +1,27 @@
 #pragma once
 
+#define MAX_ARGS 8
+#define MAX_REDIRECTS 3
+
+typedef struct {
+    char *file;
+    int fd;
+    int o_flag;
+} Redirect;
+
 typedef struct {
     char **argv;
     size_t argc;
-    char *stdin_redirect;
-    char *stdout_redirect;
-    char *stderr_redirect;
-    bool stdout_append;
-    bool stderr_append;
+    Redirect redirects[MAX_REDIRECTS];
+    size_t n_redirects;
     bool run_in_bg;
 } Command;
+
+typedef enum {
+    PARSE_OK,
+    PARSE_ERR_MALLOC,
+    PARSE_ERR_FILENAME,
+} ParseStatus;
 
 void free_cmd(Command *cmd);
 

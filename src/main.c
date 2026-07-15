@@ -27,7 +27,31 @@ pid_t shell_pgid = -1;
 pid_t fg_pgid = -1;
 char cwd[100];
 
+int redirect_io(Command *cmd) {
+    for (size_t i = 0; i < cmd->n_redirects; i++) {
+        Redirect redir = cmd->redirects[i];
+
+        int fd;
+        if ((fd = Open(redir.file, redir.o_flag, S_IRWXU)) < 0) {
+            return -1;
+        }
+
+        if (Dup2(fd, redir.fd) < 0) {
+            Close(fd);
+            return -1;
+        }
+
+        if (Close(fd) < 0) {
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
 int try_builtin(Command *cmd) {
+    // TODO: redirect IO for builtins (and reset after)
+
     if (strcmp(cmd->argv[0], "exit") == 0) {
         free_cmd(cmd);
         exit(0);
@@ -70,23 +94,6 @@ int try_builtin(Command *cmd) {
     return 0;
 }
 
-int redirect_io(char *file, int io_fd, int o_flag, int s_flag) {
-    int fd;
-    if ((fd = Open(file, o_flag, s_flag)) < 0) {
-        return -1;
-    }
-
-    if (Dup2(fd, io_fd) < 0) {
-        Close(fd);
-        return -1;
-    }
-
-    if (Close(fd) < 0) {
-        return -1;
-    }
-    return 0;
-}
-
 void exec_command(Command *cmd) {
     bool is_builtin = try_builtin(cmd);
 
@@ -99,22 +106,8 @@ void exec_command(Command *cmd) {
         if (pid == 0) {
             Setpgid(0, 0);
 
-            if (cmd->stdout_redirect) {
-                int o_append = cmd->stdout_append ? O_APPEND : 0;
-                if (redirect_io(cmd->stdout_redirect, STDOUT_FILENO, O_WRONLY | O_CREAT | o_append, S_IRWXU) < 0) {
-                    exit(-1);
-                }
-            }
-            if (cmd->stderr_redirect) {
-                int o_append = cmd->stdout_append ? O_APPEND : 0;
-                if (redirect_io(cmd->stderr_redirect, STDERR_FILENO, O_WRONLY | O_CREAT | o_append, S_IRWXU) < 0) {
-                    exit(-1);
-                }
-            }
-            if (cmd->stdin_redirect) {
-                if (redirect_io(cmd->stdin_redirect, STDIN_FILENO, O_RDONLY, 0) < 0) {
-                    exit(-1);
-                }
+            if (redirect_io(cmd) < 0) {
+                exit(-1);
             }
 
             Execvp(cmd->argv[0], cmd->argv);
@@ -167,7 +160,7 @@ int main() {
         }
 
         Command cmd;
-        if (parse_line(line, len, &cmd) < 0) {
+        if (parse_line(line, len, &cmd) != PARSE_OK) {
             free(line);
             continue;
         }

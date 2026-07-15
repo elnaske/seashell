@@ -1,13 +1,13 @@
 #include <ctype.h>
+#include <fcntl.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 #include "parse.h"
-
-#define MAX_ARGS 8
 
 void free_cmd(Command *cmd) {
     if (!cmd) return;
@@ -15,12 +15,6 @@ void free_cmd(Command *cmd) {
     cmd->argv = NULL;
     cmd->argc = 0;
 }
-
-typedef enum {
-    PARSE_OK,
-    PARSE_ERR_MALLOC,
-    PARSE_ERR_FILENAME,
-} ParseStatus;
 
 typedef enum {
     REDIR_NONE,
@@ -61,7 +55,7 @@ char **tokenize_line(char *line, size_t len, size_t *cnt_out) {
         tokens[token_cnt++] = line + start;
 
         if (token_cnt >= MAX_ARGS) {
-            printf("Warning: Max number of arguments exceeded; ignoring all after '%s'\n", tokens[token_cnt - 1]);
+            fprintf(stderr, "Warning: Max number of arguments exceeded; ignoring all after '%s'\n", tokens[token_cnt - 1]);
             break;
         }
     }
@@ -98,6 +92,15 @@ int match_redirection(char *token) {
     return REDIR_NONE;
 }
 
+void add_redirection(Command *cmd, char **next_token, int fd, int o_flag) {
+    if (cmd->n_redirects >= MAX_REDIRECTS) {
+        fprintf(stderr, "Warning: Max number of redirects exceeded; ignoring all after '%s'\n", cmd->redirects[cmd->n_redirects - 1].file);
+    }
+
+    Redirect redir = {.file = *next_token, .fd = fd, .o_flag = o_flag};
+    cmd->redirects[cmd->n_redirects++] = redir;
+}
+
 int parse_redirection(RedirKind r, char **next_token, Command *cmd) {
     if (*next_token == NULL || is_operator(*next_token)) {
         return PARSE_ERR_FILENAME;
@@ -105,35 +108,27 @@ int parse_redirection(RedirKind r, char **next_token, Command *cmd) {
 
     switch (r) {
     case REDIR_STDIN:
-        cmd->stdin_redirect = *next_token;
+        add_redirection(cmd, next_token, STDIN_FILENO, O_RDONLY);
         break;
     case REDIR_STDOUT:
-        cmd->stdout_redirect = *next_token;
-        cmd->stdout_append = false;
+        add_redirection(cmd, next_token, STDOUT_FILENO, O_WRONLY | O_CREAT);
         break;
     case REDIR_STDOUT_APPEND:
-        cmd->stdout_redirect = *next_token;
-        cmd->stdout_append = true;
+        add_redirection(cmd, next_token, STDOUT_FILENO, O_WRONLY | O_CREAT | O_APPEND);
         break;
     case REDIR_STDERR:
-        cmd->stderr_redirect = *next_token;
-        cmd->stderr_append = false;
+        add_redirection(cmd, next_token, STDERR_FILENO, O_WRONLY | O_CREAT);
         break;
     case REDIR_STDERR_APPEND:
-        cmd->stderr_redirect = *next_token;
-        cmd->stderr_append = true;
+        add_redirection(cmd, next_token, STDERR_FILENO, O_WRONLY | O_CREAT | O_APPEND);
         break;
     case REDIR_BOTH:
-        cmd->stdout_redirect = *next_token;
-        cmd->stderr_redirect = *next_token;
-        cmd->stdout_append = false;
-        cmd->stderr_append = false;
+        add_redirection(cmd, next_token, STDOUT_FILENO, O_WRONLY | O_CREAT);
+        add_redirection(cmd, next_token, STDERR_FILENO, O_WRONLY | O_CREAT);
         break;
     case REDIR_BOTH_APPEND:
-        cmd->stdout_redirect = *next_token;
-        cmd->stderr_redirect = *next_token;
-        cmd->stdout_append = true;
-        cmd->stderr_append = true;
+        add_redirection(cmd, next_token, STDOUT_FILENO, O_WRONLY | O_CREAT | O_APPEND);
+        add_redirection(cmd, next_token, STDERR_FILENO, O_WRONLY | O_CREAT | O_APPEND);
         break;
     default:
         break;
@@ -171,8 +166,8 @@ int parse_line(char *line, size_t len, Command *cmd_out) {
         if (r != REDIR_NONE) {
             next_token++;
 
-            int status;
-            if ((status = parse_redirection(r, next_token, &cmd)) != PARSE_OK) {
+            int status = parse_redirection(r, next_token, &cmd);
+            if (status != PARSE_OK) {
                 free(tokens);
                 return status;
             }

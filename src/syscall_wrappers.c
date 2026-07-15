@@ -85,7 +85,7 @@ char *Getcwd(char *buf, size_t size) {
 int Open(char *file, int o_flag, int s_flag) {
     int fd;
     if ((fd = open(file, o_flag, s_flag)) < 0) {
-        unix_error("Open error");
+        unix_error("File open error");
         return -1;
     }
     return fd;
@@ -93,7 +93,7 @@ int Open(char *file, int o_flag, int s_flag) {
 
 int Close(int fd) {
     if (close(fd) < 0) {
-        unix_error("Close error");
+        unix_error("File close error");
         return -1;
     }
     return 0;
