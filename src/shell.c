@@ -2,18 +2,17 @@
 
 #include <signal.h>
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
-#include <sys/types.h>
+#include <string.h>
+// #include <sys/types.h>
 #include <unistd.h>
-#include <wait.h>
+// #include <wait.h>
 
 #include "builtins.h"
 #include "parse.h"
 #include "redirect.h"
 #include "sighandlers.h"
 #include "syscall_wrappers.h"
-
 
 #define COL_GREEN "\033[32m"
 #define COL_BLUE "\033[34m"

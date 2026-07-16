@@ -1,9 +1,7 @@
+#pragma once
 #include <stddef.h>
 #include <stdbool.h>
-#pragma once
-
-#define MAX_ARGS 8
-#define MAX_REDIRECTS 3
+#include "options.h"
 
 typedef struct {
     char *file;
@@ -11,7 +9,7 @@ typedef struct {
     int o_flag;
 } Redirect;
 
-typedef struct {
+typedef struct Command {
     char **argv;
     size_t argc;
     Redirect redirects[MAX_REDIRECTS];

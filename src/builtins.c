@@ -14,7 +14,6 @@
 #include "shell.h"
 #include "syscall_wrappers.h"
 
-
 int match_builtin(Command *cmd) {
     char *arg = cmd->argv[0];
 

@@ -1,9 +1,8 @@
-#include <wait.h>
 #pragma once
+#include <wait.h>
+#include "options.h"
 
-#define MAX_PATHNAME_LENGTH 100
-
-typedef struct {
+typedef struct Shell {
     pid_t pgid;
     pid_t fg_pgid;
     char cwd[MAX_PATHNAME_LENGTH];

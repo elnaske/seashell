@@ -1,6 +1,6 @@
 #include "redirect.h"
 
-#include <stdbool.h>
+// #include <stdbool.h>
 #include <sys/stat.h>
 #include <unistd.h>
 

@@ -1,6 +1,6 @@
+#pragma once
 #include <stddef.h>
 #include <wait.h>
-#pragma once
 
 void unix_error(char *msg);
 
