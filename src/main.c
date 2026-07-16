@@ -2,7 +2,6 @@
 
 #include <ctype.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -13,7 +12,9 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include "builtins.h"
 #include "parse.h"
+#include "redirect.h"
 #include "sighandlers.h"
 #include "syscall_wrappers.h"
 
@@ -27,140 +28,73 @@ pid_t shell_pgid = -1;
 pid_t fg_pgid = -1;
 char cwd[100];
 
-typedef struct {
-    int stdin;
-    int stdout;
-    int stderr;
-} SavedFDs;
+// int try_builtin(Command *cmd) {
+//     if (strcmp(cmd->argv[0], "exit") == 0) {
+//         free_cmd(cmd);
+//         exit(0);
+//     }
 
-int save_fds(SavedFDs *fd_out) {
-    SavedFDs saved_fds;
+//     if (strcmp(cmd->argv[0], "cd") == 0) {
+//         char *dst = cmd->argc > 1 ? cmd->argv[1] : getenv("HOME");
+//         if (!dst) return 0;
 
-    if ((saved_fds.stdin = Dup(STDIN_FILENO)) < 0) {
-        return -1;
-    }
-    if ((saved_fds.stdout = Dup(STDOUT_FILENO)) < 0) {
-        return -1;
-    }
-    if ((saved_fds.stderr = Dup(STDERR_FILENO)) < 0) {
-        return -1;
-    }
+//         SavedFDs saved_fds;
+//         if (save_fds(&saved_fds) < 0) {
+//             return 1;
+//         }
+//         if (redirect_io(cmd) < 0) {
+//             restore_fds(&saved_fds);
+//             return 1;
+//         }
 
-    *fd_out = saved_fds;
-    return 0;
-}
+//         if (Chdir(dst) < 0) {
+//             restore_fds(&saved_fds);
+//             return 1;
+//         }
 
-int restore_fds(SavedFDs *saved) {
-    int return_val = 0;
+//         if (!Getcwd(cwd, 100) && errno == ERANGE) {
+//             memcpy(cwd, "../", 4);
+//         }
 
-    if (Dup2(saved->stdin, STDIN_FILENO) < 0) {
-        return_val = -1;
-    }
-    if (Dup2(saved->stdout, STDOUT_FILENO) < 0) {
-        return_val = -1;
-    }
-    if (Dup2(saved->stderr, STDERR_FILENO) < 0) {
-        return_val = -1;
-    }
+//         if (restore_fds(&saved_fds) < 0) {
+//             return 1;
+//         }
 
-    if (Close(saved->stdin) < 0) {
-        return_val = -1;
-    }
-    if (Close(saved->stdout) < 0) {
-        return_val = -1;
-    }
-    if (Close(saved->stderr) < 0) {
-        return_val = -1;
-    }
+//         return 1;
+//     }
 
-    return return_val;
-}
+//     if (strcmp(cmd->argv[0], "fg") == 0) {
+//         if (cmd->argc == 1) {
+//             printf("TODO: most recent job");
+//             return 1;
+//         }
 
-int redirect_io(Command *cmd) {
-    for (size_t i = 0; i < cmd->n_redirects; i++) {
-        Redirect redir = cmd->redirects[i];
+//         pid_t pid = strtol(cmd->argv[1], NULL, 10);
 
-        int fd;
-        if ((fd = Open(redir.file, redir.o_flag, S_IRWXU)) < 0) {
-            return -1;
-        }
+//         kill(pid, SIGCONT);
 
-        if (Dup2(fd, redir.fd) < 0) {
-            Close(fd);
-            return -1;
-        }
+//         fg_pgid = pid;
+//         Waitpid(pid, NULL, WUNTRACED);
+//         fg_pgid = -1;
 
-        if (Close(fd) < 0) {
-            return -1;
-        }
-    }
+//         Tcsetpgrp(STDIN_FILENO, shell_pgid);
 
-    return 0;
-}
+//         return 1;
+//     }
 
-int try_builtin(Command *cmd) {
-    // TODO: redirect IO for builtins (and reset after)
-
-    if (strcmp(cmd->argv[0], "exit") == 0) {
-        free_cmd(cmd);
-        exit(0);
-    }
-
-    if (strcmp(cmd->argv[0], "cd") == 0) {
-        char *dst = cmd->argc > 1 ? cmd->argv[1] : getenv("HOME");
-        if (!dst) return 0;
-
-        SavedFDs saved_fds;
-        if (save_fds(&saved_fds) < 0) {
-            return 1;
-        }
-        if (redirect_io(cmd) < 0) {
-            restore_fds(&saved_fds);
-            return 1;
-        }
-
-        if (Chdir(dst) < 0) {
-            restore_fds(&saved_fds);
-            return 1;
-        }
-
-        if (!Getcwd(cwd, 100) && errno == ERANGE) {
-            memcpy(cwd, "../", 4);
-        }
-
-        if (restore_fds(&saved_fds) < 0) {
-            return 1;
-        }
-
-        return 1;
-    }
-
-    if (strcmp(cmd->argv[0], "fg") == 0) {
-        if (cmd->argc == 1) {
-            printf("TODO: most recent job");
-            return 1;
-        }
-
-        pid_t pid = strtol(cmd->argv[1], NULL, 10);
-
-        kill(pid, SIGCONT);
-
-        fg_pgid = pid;
-        Waitpid(pid, NULL, WUNTRACED);
-        fg_pgid = -1;
-
-        Tcsetpgrp(STDIN_FILENO, shell_pgid);
-
-        return 1;
-    }
-
-    return 0;
-}
+//     return 0;
+// }
 
 void exec_command(Command *cmd) {
-    bool is_builtin = try_builtin(cmd);
+    // bool is_builtin = try_builtin(cmd);
+    Builtin b = match_builtin(cmd);
 
-    if (!is_builtin) {
+    if (b != NOT_A_BUILTIN) {
+        if (run_builtin(b, cmd) != EXEC_OK) {
+            // TODO: error handling
+            return;
+        }
+    } else {
         pid_t pid = Fork();
         if (pid < 0) {
             return;
