@@ -22,7 +22,7 @@ void install_signal_handler(int signum, void (*handler)(int)) {
     act.sa_flags = SA_RESTART;
 
     if (sigaction(signum, &act, NULL) < 0) {
-        printf("Sigaction error: %s", strerror(errno));
+        fprintf(stderr, "Sigaction error: %s", strerror(errno));
         exit(1);
     }
 
@@ -37,11 +37,11 @@ void reap_children(int sig) {
 
     // TODO: defer to end of main loop (set global var)
     while ((pid = waitpid(-1, NULL, WNOHANG)) > 0) {
-        printf("Reaped process %d\n", pid);
+        fprintf(stderr, "Reaped process %d\n", pid);
     }
 
     if (errno && errno != ECHILD) {
-        printf("Waitpid error: %s\n", strerror(errno));
+        fprintf(stderr, "Waitpid error: %s\n", strerror(errno));
     }
 
     errno = saved_errno;
