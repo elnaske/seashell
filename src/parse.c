@@ -1,3 +1,5 @@
+#include "parse.h"
+
 #include <ctype.h>
 #include <fcntl.h>
 #include <stdbool.h>
@@ -6,8 +8,6 @@
 #include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
-
-#include "parse.h"
 
 void free_cmd(Command *cmd) {
     if (!cmd) return;

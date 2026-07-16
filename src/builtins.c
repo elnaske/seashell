@@ -1,11 +1,19 @@
+#include "builtins.h"
+
+#include <errno.h>
 #include <signal.h>
+#include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
-#include "builtins.h"
 #include "parse.h"
 #include "redirect.h"
+#include "shell.h"
+#include "syscall_wrappers.h"
+
 
 int match_builtin(Command *cmd) {
     char *arg = cmd->argv[0];
@@ -20,22 +28,21 @@ int match_builtin(Command *cmd) {
     return NOT_A_BUILTIN;
 }
 
-int builtin_cd(Command *cmd) {
+int builtin_cd(Shell *s, Command *cmd) {
     char *dst = cmd->argc > 1 ? cmd->argv[1] : getenv("HOME");
 
     if (Chdir(dst) < 0) {
         return EXEC_ERR;
     }
 
-    // TODO: fix this w/ shell struct
-    if (!Getcwd(cwd, 100) && errno == ERANGE) {
-        memcpy(cwd, "../", 4);
+    if (!Getcwd(s->cwd, 100) && errno == ERANGE) {
+        memcpy(s->cwd, "../", 4);
     }
 
     return EXEC_OK;
 }
 
-int builtin_fg(Command *cmd) {
+int builtin_fg(Shell *s, Command *cmd) {
     if (cmd->argc == 1) {
         printf("TODO: most recent job");
         return EXEC_OK;
@@ -45,18 +52,16 @@ int builtin_fg(Command *cmd) {
 
     kill(pid, SIGCONT);
 
-    // TODO: fix this w/ shell struct
-    fg_pgid = pid;
+    s->fg_pgid = pid;
     Waitpid(pid, NULL, WUNTRACED);
-    fg_pgid = -1;
+    s->fg_pgid = -1;
 
-    // TODO: fix this w/ shell struct
-    Tcsetpgrp(STDIN_FILENO, shell_pgid);
+    Tcsetpgrp(STDIN_FILENO, s->pgid);
 
     return EXEC_OK;
 }
 
-int run_builtin(Builtin b, Command *cmd) {
+int run_builtin(Shell *s, Builtin b, Command *cmd) {
     if (b == NOT_A_BUILTIN)
         return -1;
 
@@ -77,10 +82,10 @@ int run_builtin(Builtin b, Command *cmd) {
         exit(0);
         break;
     case BUILTIN_CD:
-        status = builtin_cd(cmd);
+        status = builtin_cd(s, cmd);
         break;
     case BUILTIN_FG:
-        status = builtin_fg(cmd);
+        status = builtin_fg(s, cmd);
         break;
     default:
         break;

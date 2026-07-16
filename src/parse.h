@@ -1,3 +1,5 @@
+#include <stddef.h>
+#include <stdbool.h>
 #pragma once
 
 #define MAX_ARGS 8

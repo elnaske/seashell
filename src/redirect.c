@@ -1,8 +1,10 @@
+#include "redirect.h"
+
+#include <stdbool.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
 #include "parse.h"
-#include "redirect.h"
 #include "syscall_wrappers.h"
 
 int save_fds(SavedFDs *fd_out) {

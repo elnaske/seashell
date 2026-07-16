@@ -1,5 +1,7 @@
 #define _GNU_SOURCE
 
+#include "sighandlers.h"
+
 #include <errno.h>
 #include <signal.h>
 #include <stdio.h>
@@ -7,10 +9,10 @@
 #include <string.h>
 #include <sys/wait.h>
 
-#include "sighandlers.h"
 #include "syscall_wrappers.h"
+#include "shell.h"
 
-extern pid_t fg_pgid;
+extern Shell shell;
 
 void install_signal_handler(int signum, void (*handler)(int)) {
     struct sigaction act = {0};
@@ -50,9 +52,10 @@ void reap_children(int sig) {
 void keyboard_interrupt(int sig) {
     (void)sig;
 
-    if (fg_pgid >= 0) {
-        Kill(-fg_pgid, sig);
-        fg_pgid = -1;
+    // TODO: defer to main loop by setting global flag (then shell won't need to be global anymore)
+    if (shell.fg_pgid >= 0) {
+        Kill(-shell.fg_pgid, sig);
+        shell.fg_pgid = -1;
     }
 
     return;

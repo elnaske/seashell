@@ -1,3 +1,5 @@
+#include "parse.h"
+#include "shell.h"
 #pragma once
 
 typedef enum {
@@ -15,4 +17,4 @@ typedef enum {
 
 int match_builtin(Command *cmd);
 
-int run_builtin(Builtin b, Command *cmd);
+int run_builtin(Shell *s, Builtin b, Command *cmd);
