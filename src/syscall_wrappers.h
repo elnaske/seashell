@@ -22,4 +22,6 @@ int Open(char *file, int o_flag, int s_flag);
 
 int Close(int fd);
 
+int Dup(int fd);
+
 int Dup2(int fd, int fd2);

@@ -27,6 +27,55 @@ pid_t shell_pgid = -1;
 pid_t fg_pgid = -1;
 char cwd[100];
 
+typedef struct {
+    int stdin;
+    int stdout;
+    int stderr;
+} SavedFDs;
+
+int save_fds(SavedFDs *fd_out) {
+    SavedFDs saved_fds;
+
+    if ((saved_fds.stdin = Dup(STDIN_FILENO)) < 0) {
+        return -1;
+    }
+    if ((saved_fds.stdout = Dup(STDOUT_FILENO)) < 0) {
+        return -1;
+    }
+    if ((saved_fds.stderr = Dup(STDERR_FILENO)) < 0) {
+        return -1;
+    }
+
+    *fd_out = saved_fds;
+    return 0;
+}
+
+int restore_fds(SavedFDs *saved) {
+    int return_val = 0;
+
+    if (Dup2(saved->stdin, STDIN_FILENO) < 0) {
+        return_val = -1;
+    }
+    if (Dup2(saved->stdout, STDOUT_FILENO) < 0) {
+        return_val = -1;
+    }
+    if (Dup2(saved->stderr, STDERR_FILENO) < 0) {
+        return_val = -1;
+    }
+
+    if (Close(saved->stdin) < 0) {
+        return_val = -1;
+    }
+    if (Close(saved->stdout) < 0) {
+        return_val = -1;
+    }
+    if (Close(saved->stderr) < 0) {
+        return_val = -1;
+    }
+
+    return return_val;
+}
+
 int redirect_io(Command *cmd) {
     for (size_t i = 0; i < cmd->n_redirects; i++) {
         Redirect redir = cmd->redirects[i];
@@ -61,12 +110,26 @@ int try_builtin(Command *cmd) {
         char *dst = cmd->argc > 1 ? cmd->argv[1] : getenv("HOME");
         if (!dst) return 0;
 
+        SavedFDs saved_fds;
+        if (save_fds(&saved_fds) < 0) {
+            return 1;
+        }
+        if (redirect_io(cmd) < 0) {
+            restore_fds(&saved_fds);
+            return 1;
+        }
+
         if (Chdir(dst) < 0) {
+            restore_fds(&saved_fds);
             return 1;
         }
 
         if (!Getcwd(cwd, 100) && errno == ERANGE) {
             memcpy(cwd, "../", 4);
+        }
+
+        if (restore_fds(&saved_fds) < 0) {
+            return 1;
         }
 
         return 1;

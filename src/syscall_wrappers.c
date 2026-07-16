@@ -99,6 +99,15 @@ int Close(int fd) {
     return 0;
 }
 
+int Dup(int fd) {
+    int new_fd;
+    if ((new_fd = dup(fd)) < 0) {
+        unix_error("Redirection error");
+        return -1;
+    }
+    return new_fd;
+}
+
 int Dup2(int fd, int fd2) {
     if (dup2(fd, fd2) < 0) {
         unix_error("Redirection error");
