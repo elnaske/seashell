@@ -4,9 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-// #include <sys/types.h>
 #include <unistd.h>
-// #include <wait.h>
 
 #include "builtins.h"
 #include "parse.h"
@@ -40,8 +38,7 @@ void exec_command(Shell *s, Command *cmd) {
     Builtin b = match_builtin(cmd);
 
     if (b != NOT_A_BUILTIN) {
-        if (run_builtin(s, b, cmd) != EXEC_OK) {
-            // TODO: error handling
+        if (run_builtin(s, b, cmd) < 0) {
             return;
         }
     } else {

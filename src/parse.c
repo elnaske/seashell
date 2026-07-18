@@ -2,11 +2,9 @@
 
 #include <ctype.h>
 #include <fcntl.h>
-// #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-// #include <sys/types.h>
 #include <unistd.h>
 
 void free_cmd(Command *cmd) {
@@ -26,6 +24,23 @@ typedef enum {
     REDIR_BOTH,
     REDIR_BOTH_APPEND,
 } RedirKind;
+
+void parse_error(int status) {
+    char *err;
+
+    switch (status) {
+    case PARSE_ERR_MALLOC:
+        err = "memory allocation failure";
+        break;
+    case PARSE_ERR_FILENAME:
+        err = "missing filename";
+        break;
+    default:
+        return;
+    }
+
+    fprintf(stderr, "Parse error: %s\n", err);
+}
 
 char **tokenize_line(char *line, size_t len, size_t *cnt_out) {
     if (!line) return NULL;
@@ -168,7 +183,10 @@ int parse_line(char *line, size_t len, Command *cmd_out) {
 
             int status = parse_redirection(r, next_token, &cmd);
             if (status != PARSE_OK) {
+                parse_error(status);
+
                 free(tokens);
+                free(argv);
                 return status;
             }
         } else {

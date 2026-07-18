@@ -31,20 +31,20 @@ int builtin_cd(Shell *s, Command *cmd) {
     char *dst = cmd->argc > 1 ? cmd->argv[1] : getenv("HOME");
 
     if (Chdir(dst) < 0) {
-        return EXEC_ERR;
+        return -1;
     }
 
     if (!Getcwd(s->cwd, 100) && errno == ERANGE) {
         memcpy(s->cwd, "../", 4);
     }
 
-    return EXEC_OK;
+    return 0;
 }
 
 int builtin_fg(Shell *s, Command *cmd) {
     if (cmd->argc == 1) {
-        printf("TODO: most recent job");
-        return EXEC_OK;
+        fprintf(stderr, "TODO: most recent job");
+        return -1;
     }
 
     pid_t pid = strtol(cmd->argv[1], NULL, 10);
@@ -57,7 +57,7 @@ int builtin_fg(Shell *s, Command *cmd) {
 
     Tcsetpgrp(STDIN_FILENO, s->pgid);
 
-    return EXEC_OK;
+    return 0;
 }
 
 int run_builtin(Shell *s, Builtin b, Command *cmd) {
@@ -66,11 +66,11 @@ int run_builtin(Shell *s, Builtin b, Command *cmd) {
 
     SavedFDs saved_fds;
     if (save_fds(&saved_fds) < 0) {
-        return 1;
+        return -1;
     }
     if (redirect_io(cmd) < 0) {
         restore_fds(&saved_fds);
-        return 1;
+        return -1;
     }
 
     int status;
@@ -90,14 +90,14 @@ int run_builtin(Shell *s, Builtin b, Command *cmd) {
         break;
     }
 
-    if (status != EXEC_OK) {
+    if (status < 0) {
         restore_fds(&saved_fds);
         return status;
     }
 
     if (restore_fds(&saved_fds) < 0) {
-        return 1;
+        return -1;
     }
 
-    return EXEC_OK;
+    return 0;
 }

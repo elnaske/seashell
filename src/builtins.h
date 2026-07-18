@@ -10,11 +10,6 @@ typedef enum {
     BUILTIN_FG,
 } Builtin;
 
-typedef enum {
-    EXEC_OK,
-    EXEC_ERR,
-} ExecStatus;
-
 int match_builtin(Command *cmd);
 
 int run_builtin(Shell *s, Builtin b, Command *cmd);

@@ -1,5 +1,11 @@
+import pytest
+import os
+import signal
 import subprocess
 import tempfile
+import time
+
+# TODO: tests that should fail (incl. proper error handling)
 
 
 def run_shell(cmd):
@@ -8,6 +14,16 @@ def run_shell(cmd):
         input=cmd,
         text=True,
         capture_output=True,
+    )
+
+
+def run_shell_process():
+    return subprocess.Popen(
+        "./seashell",
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
     )
 
 
@@ -128,3 +144,75 @@ def test_redirect_both_append():
 
     assert res.returncode == 0
     assert "a\na\ncd: No such file or directory" in res.stdout
+
+
+def test_sigint():
+    p = run_shell_process()
+
+    p.stdin.write("sleep 10\n")
+    p.stdin.flush()
+
+    time.sleep(0.1)
+
+    os.kill(p.pid, signal.SIGINT)
+
+    p.stdin.write("echo done\n")
+    p.stdin.flush()
+
+    stdout, _ = p.communicate("exit\n", timeout=2)
+
+    assert p.returncode == 0
+    assert "done" in stdout
+
+
+def test_sigtstp():
+    p = run_shell_process()
+
+    p.stdin.write("sleep 10\n")
+    p.stdin.flush()
+
+    time.sleep(0.1)
+
+    os.kill(p.pid, signal.SIGTSTP)
+
+    p.stdin.write("echo done\n")
+    p.stdin.flush()
+
+    stdout, _ = p.communicate("exit\n", timeout=2)
+
+    assert p.returncode == 0
+    assert "done" in stdout
+
+
+def test_bg_exec():
+    p = run_shell_process()
+
+    p.stdin.write("sleep 0 &\n")
+    p.stdin.flush()
+
+    time.sleep(0.2)
+
+    _, stderr = p.communicate("exit\n", timeout=2)
+
+    assert "Reaped" in stderr
+
+
+def test_parse_missing_file():
+    res = run_shell("""\
+        echo test >
+        exit
+        """)
+
+    assert res.returncode == 0
+    assert "Parse error" in res.stderr
+    assert "test" not in res.stdout
+
+
+def test_parse_missing_file_2():
+    res = run_shell("""\
+        sort < >
+        exit
+        """)
+
+    assert res.returncode == 0
+    assert "Parse error" in res.stderr
