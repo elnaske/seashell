@@ -7,23 +7,9 @@
 #include <string.h>
 #include <unistd.h>
 
-void free_cmd(Command *cmd) {
-    if (!cmd) return;
-    free(cmd->argv);
-    cmd->argv = NULL;
-    cmd->argc = 0;
-}
-
-typedef enum {
-    REDIR_NONE,
-    REDIR_STDIN,
-    REDIR_STDOUT,
-    REDIR_STDOUT_APPEND,
-    REDIR_STDERR,
-    REDIR_STDERR_APPEND,
-    REDIR_BOTH,
-    REDIR_BOTH_APPEND,
-} RedirKind;
+#include "commands.h"
+#include "options.h"
+#include "redirect.h"
 
 void parse_error(int status) {
     char *err;
@@ -88,34 +74,6 @@ static inline bool is_operator(char *s) {
     return strcmp(s, "<") == 0 || strcmp(s, ">") == 0 || strcmp(s, ">>") == 0 || strcmp(s, "2>") == 0 || strcmp(s, "2>>") == 0 || strcmp(s, "&>") == 0 || strcmp(s, "&>>") == 0;
 }
 
-int match_redirection(char *token) {
-    if (strcmp(token, "<") == 0)
-        return REDIR_STDIN;
-    if (strcmp(token, ">") == 0)
-        return REDIR_STDOUT;
-    if (strcmp(token, ">>") == 0)
-        return REDIR_STDOUT_APPEND;
-    if (strcmp(token, "2>") == 0)
-        return REDIR_STDERR;
-    if (strcmp(token, "2>>") == 0)
-        return REDIR_STDERR_APPEND;
-    if (strcmp(token, "&>") == 0)
-        return REDIR_BOTH;
-    if (strcmp(token, "&>>") == 0)
-        return REDIR_BOTH_APPEND;
-
-    return REDIR_NONE;
-}
-
-void add_redirection(Command *cmd, char **next_token, int fd, int o_flag) {
-    if (cmd->n_redirects >= MAX_REDIRECTS) {
-        fprintf(stderr, "Warning: Max number of redirects exceeded; ignoring all after '%s'\n", cmd->redirects[cmd->n_redirects - 1].file);
-    }
-
-    Redirect redir = {.file = *next_token, .fd = fd, .o_flag = o_flag};
-    cmd->redirects[cmd->n_redirects++] = redir;
-}
-
 int parse_redirection(RedirKind r, char **next_token, Command *cmd) {
     if (*next_token == NULL || is_operator(*next_token)) {
         return PARSE_ERR_FILENAME;
@@ -156,9 +114,13 @@ int parse_line(char *line, size_t len, Command *cmd_out) {
 
     size_t token_cnt;
     char **tokens = tokenize_line(line, len, &token_cnt);
-    if (!tokens || !token_cnt) {
+    if (!tokens) {
         free(tokens);
         return PARSE_ERR_MALLOC;
+    }
+    if (!token_cnt) {
+        free(tokens);
+        return PARSE_OK;
     }
 
     char **argv = malloc(sizeof(tokens) * (token_cnt + 1));
@@ -183,7 +145,6 @@ int parse_line(char *line, size_t len, Command *cmd_out) {
 
             int status = parse_redirection(r, next_token, &cmd);
             if (status != PARSE_OK) {
-                parse_error(status);
 
                 free(tokens);
                 free(argv);

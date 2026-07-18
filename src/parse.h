@@ -1,21 +1,7 @@
 #pragma once
 #include <stddef.h>
-#include <stdbool.h>
-#include "options.h"
 
-typedef struct {
-    char *file;
-    int fd;
-    int o_flag;
-} Redirect;
-
-typedef struct Command {
-    char **argv;
-    size_t argc;
-    Redirect redirects[MAX_REDIRECTS];
-    size_t n_redirects;
-    bool run_in_bg;
-} Command;
+typedef struct Command Command;
 
 typedef enum {
     PARSE_OK,
@@ -23,6 +9,6 @@ typedef enum {
     PARSE_ERR_FILENAME,
 } ParseStatus;
 
-void free_cmd(Command *cmd);
+void parse_error(int status);
 
 int parse_line(char *line, size_t len, Command *cmd_out);

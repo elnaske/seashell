@@ -1,4 +1,4 @@
-#include "builtins.h"
+#include "commands.h"
 
 #include <errno.h>
 #include <signal.h>
@@ -13,6 +13,13 @@
 #include "redirect.h"
 #include "shell.h"
 #include "syscall_wrappers.h"
+
+void free_cmd(Command *cmd) {
+    if (!cmd) return;
+    free(cmd->argv);
+    cmd->argv = NULL;
+    cmd->argc = 0;
+}
 
 int match_builtin(Command *cmd) {
     char *arg = cmd->argv[0];
@@ -60,7 +67,7 @@ int builtin_fg(Shell *s, Command *cmd) {
     return 0;
 }
 
-int run_builtin(Shell *s, Builtin b, Command *cmd) {
+int run_builtin(Shell *s, BuiltinKind b, Command *cmd) {
     if (b == NOT_A_BUILTIN)
         return -1;
 
@@ -100,4 +107,50 @@ int run_builtin(Shell *s, Builtin b, Command *cmd) {
     }
 
     return 0;
+}
+
+void exec_command(Shell *s, Command *cmd) {
+    if (!cmd || !cmd->argc) return;
+
+    BuiltinKind b = match_builtin(cmd);
+
+    if (b != NOT_A_BUILTIN) {
+        if (run_builtin(s, b, cmd) < 0) {
+            return;
+        }
+    } else {
+        pid_t pid = Fork();
+        if (pid < 0) {
+            return;
+        }
+
+        if (pid == 0) {
+            Setpgid(0, 0);
+
+            if (redirect_io(cmd) < 0) {
+                exit(-1);
+            }
+
+            Execvp(cmd->argv[0], cmd->argv);
+        }
+
+        Setpgid(pid, pid);
+
+        if (!cmd->run_in_bg) {
+            Tcsetpgrp(STDIN_FILENO, pid);
+
+            s->fg_pgid = pid;
+            Waitpid(pid, NULL, WUNTRACED);
+            s->fg_pgid = -1;
+
+            Tcsetpgrp(STDIN_FILENO, s->pgid);
+
+        } else {
+            printf("[%d]", pid);
+            for (size_t i = 0; i < cmd->argc; i++) {
+                printf(" %s", cmd->argv[i]);
+            }
+            printf("\n");
+        }
+    }
 }

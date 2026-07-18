@@ -5,8 +5,6 @@ import subprocess
 import tempfile
 import time
 
-# TODO: tests that should fail (incl. proper error handling)
-
 
 def run_shell(cmd):
     return subprocess.run(
@@ -57,6 +55,17 @@ def test_cd_bare():
 
     assert res.returncode == 0
     assert "/home" in res.stdout
+
+
+def test_empty_line():
+    res = run_shell("""\
+        
+        echo test
+        exit
+        """)
+
+    assert res.returncode == 0
+    assert "test" in res.stdout
 
 
 def test_redirect_stdin_stdout():

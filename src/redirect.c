@@ -1,10 +1,41 @@
 #include "redirect.h"
 
+#include <stdio.h>
+#include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "commands.h"
 #include "parse.h"
 #include "syscall_wrappers.h"
+
+int match_redirection(char *token) {
+    if (strcmp(token, "<") == 0)
+        return REDIR_STDIN;
+    if (strcmp(token, ">") == 0)
+        return REDIR_STDOUT;
+    if (strcmp(token, ">>") == 0)
+        return REDIR_STDOUT_APPEND;
+    if (strcmp(token, "2>") == 0)
+        return REDIR_STDERR;
+    if (strcmp(token, "2>>") == 0)
+        return REDIR_STDERR_APPEND;
+    if (strcmp(token, "&>") == 0)
+        return REDIR_BOTH;
+    if (strcmp(token, "&>>") == 0)
+        return REDIR_BOTH_APPEND;
+
+    return REDIR_NONE;
+}
+
+void add_redirection(Command *cmd, char **next_token, int fd, int o_flag) {
+    if (cmd->n_redirects >= MAX_REDIRECTS) {
+        fprintf(stderr, "Warning: Max number of redirects exceeded; ignoring all after '%s'\n", cmd->redirects[cmd->n_redirects - 1].file);
+    }
+
+    Redirect redir = {.file = *next_token, .fd = fd, .o_flag = o_flag};
+    cmd->redirects[cmd->n_redirects++] = redir;
+}
 
 int save_fds(SavedFDs *fd_out) {
     SavedFDs saved_fds;
