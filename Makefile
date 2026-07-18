@@ -1,7 +1,7 @@
 CC_FLAGS = -Wall -Wextra -Wpedantic -g -fsanitize=address -fno-omit-frame-pointer
 
-SRC = src/main.c src/sighandlers.c src/syscall_wrappers.c src/parse.c
-OBJ = $(SRC:.c=.o)
+SRC = $(wildcard src/*.c)
+OBJ = $(SRC:src/%.c=build/%.o)
 
 TARGET = seashell
 
@@ -10,7 +10,8 @@ all: $(TARGET)
 $(TARGET): $(OBJ)
 	gcc $(OBJ) -o $(TARGET) $(CC_FLAGS)
 
-%.o: %.c
+build/%.o: src/%.c
+	@mkdir -p $(dir $@)
 	gcc -c $< -o $@ $(CC_FLAGS)
 
 clean:
