@@ -13,6 +13,8 @@
 
 extern Shell shell;
 
+volatile sig_atomic_t sigchld_received = false;
+
 void install_signal_handler(int signum, void (*handler)(int)) {
     struct sigaction act = {0};
     act.sa_handler = handler;
@@ -28,13 +30,10 @@ void install_signal_handler(int signum, void (*handler)(int)) {
     return;
 }
 
-void reap_children(int sig) {
-    (void)sig;
-
+void reap_children() {
     int saved_errno = errno;
     pid_t pid;
 
-    // TODO: defer to end of main loop (set global var)
     while ((pid = waitpid(-1, NULL, WNOHANG)) > 0) {
         fprintf(stderr, "Reaped process %d\n", pid);
     }
@@ -48,9 +47,13 @@ void reap_children(int sig) {
     return;
 }
 
-void keyboard_interrupt(int sig) {
+void sigchld_handler(int sig) {
     (void)sig;
 
+    sigchld_received = true;
+}
+
+void keyboard_interrupt(int sig) {
     // TODO: defer to main loop by setting global flag (then shell won't need to be global anymore)
     if (shell.fg_pgid >= 0) {
         Kill(-shell.fg_pgid, sig);

@@ -16,6 +16,8 @@
 #define COL_BLUE "\033[34m"
 #define COL_CLR "\033[0m"
 
+extern sig_atomic_t sigchld_received;
+
 int shell_init(Shell *s) {
     s->pgid = getpgrp();
     s->fg_pgid = -1;
@@ -24,7 +26,7 @@ int shell_init(Shell *s) {
         memcpy(s->cwd, "../", 4);
     }
 
-    install_signal_handler(SIGCHLD, &reap_children);
+    install_signal_handler(SIGCHLD, &sigchld_handler);
     install_signal_handler(SIGINT, &keyboard_interrupt);
     install_signal_handler(SIGTSTP, &keyboard_interrupt);
     install_signal_handler(SIGTTOU, SIG_IGN);
@@ -57,6 +59,11 @@ int shell_run(Shell *s) {
         }
 
         exec_job(s, &job);
+
+        if (sigchld_received) {
+            reap_children();
+            sigchld_received = false;
+        }
 
         free_job(&job);
         free(line);
