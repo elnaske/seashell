@@ -13,18 +13,30 @@ typedef enum {
     BUILTIN_FG,
 } BuiltinKind;
 
+typedef enum {
+    EXEC_OK,
+    EXEC_ERR,
+} ExecStatus;
+
 typedef struct Command {
     char **argv;
     size_t argc;
     Redirect redirects[MAX_REDIRECTS];
     size_t n_redirects;
-    bool run_in_bg;
+    // bool run_in_bg;
 } Command;
 
-void free_cmd(Command *cmd);
+typedef struct Job {
+    Command cmds[MAX_CMDS_PER_JOB];
+    size_t cmd_cnt;
+    bool run_in_bg;
+} Job;
+
+void free_job(Job *job);
 
 int match_builtin(Command *cmd);
 
 int run_builtin(Shell *s, BuiltinKind b, Command *cmd);
 
-void exec_command(Shell *s, Command *cmd);
+// int exec_command(Shell *s, Command *cmd, pid_t *pgid, bool is_last, int *prev_p);
+void exec_job(Shell *s, Job *job);

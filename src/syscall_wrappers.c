@@ -115,3 +115,11 @@ int Dup2(int fd, int fd2) {
     }
     return 0;
 }
+
+int Pipe(int pipefd[2]) {
+    if (pipe(pipefd) < 0) {
+        unix_error("Pipe error");
+        return -1;
+    }
+    return 0;
+}

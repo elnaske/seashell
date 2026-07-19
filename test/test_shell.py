@@ -68,6 +68,16 @@ def test_empty_line():
     assert "test" in res.stdout
 
 
+def test_not_a_cmd():
+    res = run_shell("""\
+        notacommand
+        exit
+        """)
+
+    assert res.returncode == 0
+    assert "Execve error" in res.stderr
+
+
 def test_redirect_stdin_stdout():
     with tempfile.TemporaryDirectory() as tmp:
         with open(f"{tmp}/a.txt", 'w') as f:
@@ -155,6 +165,21 @@ def test_redirect_both_append():
     assert "a\na\ncd: No such file or directory" in res.stdout
 
 
+def test_redirect_before_args():
+    with tempfile.TemporaryDirectory() as tmp:
+        res = run_shell(f"""\
+            cd {tmp}
+            echo hello world > a.txt
+            grep > a.txt hello -o a.txt
+            cat a.txt
+            exit
+            """)
+
+    assert res.returncode == 0
+    assert "hello" in res.stdout
+    assert "world" not in res.stdout
+
+
 def test_sigint():
     p = run_shell_process()
 
@@ -225,3 +250,78 @@ def test_parse_missing_file_2():
 
     assert res.returncode == 0
     assert "Parse error" in res.stderr
+
+
+def test_parse_missing_file_3():
+    res = run_shell("""\
+        sort < |
+        exit
+        """)
+
+    assert res.returncode == 0
+    assert "Parse error" in res.stderr
+
+
+def test_parse_dangling_pipe():
+    res = run_shell("""\
+        echo test |
+        exit
+        """)
+
+    assert res.returncode == 0
+    assert "Parse error" in res.stderr
+
+def test_parse_leading_pipe():
+    res = run_shell("""\
+        | grep test
+        exit
+        """)
+
+    assert res.returncode == 0
+    assert "Parse error" in res.stderr
+
+
+def test_parse_bg_pipe():
+    res = run_shell("""\
+        echo abc & | rev
+        exit
+        """)
+
+    assert res.returncode == 0
+    assert "Parse error" in res.stderr
+    assert "abc" not in res.stdout
+    assert "cba" not in res.stdout
+
+
+def test_pipe():
+    res = run_shell("""\
+        echo hello world | grep hello -o
+        exit
+        """)
+
+    assert res.returncode == 0
+    assert "hello" in res.stdout
+    assert "world" not in res.stdout
+
+
+def test_pipe_2():
+    res = run_shell("""\
+        echo hello world | grep hello -o | rev
+        exit
+        """)
+
+    assert res.returncode == 0
+    assert "olleh" in res.stdout
+
+
+def test_pipe_and_redirect():
+    with tempfile.TemporaryDirectory() as tmp:
+        res = run_shell(f"""\
+            cd {tmp}
+            echo hello | rev > a.txt
+            cat a.txt
+            exit
+            """)
+
+    assert res.returncode == 0
+    assert "olleh" in res.stdout

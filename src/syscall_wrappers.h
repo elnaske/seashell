@@ -27,3 +27,5 @@ int Close(int fd);
 int Dup(int fd);
 
 int Dup2(int fd, int fd2);
+
+int Pipe(int pipefd[2]);

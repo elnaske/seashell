@@ -30,11 +30,13 @@ int shell_init(Shell *s) {
     install_signal_handler(SIGTTOU, SIG_IGN);
     install_signal_handler(SIGTTIN, SIG_IGN);
 
+    s->running = true;
+
     return 0;
 }
 
 int shell_run(Shell *s) {
-    while (1) {
+    while (s->running) {
         printf(COL_GREEN "seashell" COL_CLR ":" COL_BLUE "%s" COL_CLR "$ ", s->cwd);
 
         char *line = NULL;
@@ -46,17 +48,17 @@ int shell_run(Shell *s) {
             return -1;
         }
 
-        Command cmd = {0};
-        int status = parse_line(line, len, &cmd);
+        Job job = {0};
+        int status = parse_line(line, len, &job);
         if (status != PARSE_OK) {
             parse_error(status);
             free(line);
             continue;
         }
 
-        exec_command(s, &cmd);
+        exec_job(s, &job);
 
-        free_cmd(&cmd);
+        free_job(&job);
         free(line);
     }
     return 0;

@@ -21,6 +21,12 @@ void parse_error(int status) {
     case PARSE_ERR_FILENAME:
         err = "missing filename";
         break;
+    case PARSE_ERR_LEADING_PIPE:
+        err = "leading pipe";
+        break;
+    case PARSE_ERR_DANGLING_PIPE:
+        err = "dangling pipe";
+        break;
     default:
         return;
     }
@@ -75,7 +81,7 @@ static inline bool is_operator(char *s) {
 }
 
 int parse_redirection(RedirKind r, char **next_token, Command *cmd) {
-    if (*next_token == NULL || is_operator(*next_token)) {
+    if (*next_token == NULL || is_operator(*next_token) || strcmp(*next_token, "|") == 0) {
         return PARSE_ERR_FILENAME;
     }
 
@@ -109,9 +115,58 @@ int parse_redirection(RedirKind r, char **next_token, Command *cmd) {
     return PARSE_OK;
 }
 
-int parse_line(char *line, size_t len, Command *cmd_out) {
+int parse_command(char ***p_next_token, char **argv_start, Command *cmd_out) {
     if (!cmd_out) return -1;
 
+    Command cmd = {0};
+    cmd.argv = argv_start;
+
+    char **next_token = *p_next_token;
+
+    while (*next_token) {
+        if (strcmp(*next_token, "|") == 0) {
+            next_token++;
+            
+            if (cmd.argc == 0) {
+                return PARSE_ERR_LEADING_PIPE;
+            }
+
+            if (!*next_token) {
+                return PARSE_ERR_DANGLING_PIPE;
+            }
+            break;
+        }
+
+        RedirKind r = match_redirection(*next_token);
+
+        if (r != REDIR_NONE) {
+            next_token++;
+
+            int status = parse_redirection(r, next_token, &cmd);
+            if (status != PARSE_OK) {
+                return status;
+            }
+        } else {
+            cmd.argv[cmd.argc++] = *next_token;
+        }
+
+        next_token++;
+    }
+
+    cmd.argv[cmd.argc] = NULL;
+
+    if (cmd_out) {
+        *cmd_out = cmd;
+    }
+
+    *p_next_token = next_token;
+
+    return PARSE_OK;
+}
+
+int parse_line(char *line, size_t len, Job *job_out) {
+    if (!job_out) return -1;
+    
     size_t token_cnt;
     char **tokens = tokenize_line(line, len, &token_cnt);
     if (!tokens) {
@@ -129,36 +184,31 @@ int parse_line(char *line, size_t len, Command *cmd_out) {
         return PARSE_ERR_MALLOC;
     }
 
-    Command cmd = {0};
-    cmd.argv = argv;
-    cmd.run_in_bg = *(tokens[token_cnt - 1]) == '&';
-    if (cmd.run_in_bg) {
+    char **next_token = tokens;
+    char **argv_start = argv;
+
+    Job job = {0};
+    job.run_in_bg = *(tokens[token_cnt - 1]) == '&';
+    if (job.run_in_bg) {
         tokens[--token_cnt] = NULL;
     }
 
-    char **next_token = tokens;
     while (*next_token) {
-        RedirKind r = match_redirection(*next_token);
+        Command cmd = {0};
 
-        if (r != REDIR_NONE) {
-            next_token++;
-
-            int status = parse_redirection(r, next_token, &cmd);
-            if (status != PARSE_OK) {
-
-                free(tokens);
-                free(argv);
-                return status;
-            }
-        } else {
-            cmd.argv[cmd.argc++] = *next_token;
+        int status = parse_command(&next_token, argv_start, &cmd);
+        if (status != PARSE_OK) {
+            free(tokens);
+            free(argv);
+            return status;
         }
 
-        next_token++;
+        argv_start += cmd.argc + 1;
+
+        job.cmds[job.cmd_cnt++] = cmd;
     }
 
-    cmd.argv[cmd.argc] = NULL;
-    *cmd_out = cmd;
+    *job_out = job;
 
     free(tokens);
     return PARSE_OK;
