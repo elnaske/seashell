@@ -31,7 +31,6 @@ void install_signal_handler(int signum, void (*handler)(int)) {
 }
 
 void reap_children() {
-    int saved_errno = errno;
     pid_t pid;
 
     while ((pid = waitpid(-1, NULL, WNOHANG)) > 0) {
@@ -41,8 +40,6 @@ void reap_children() {
     if (errno && errno != ECHILD) {
         fprintf(stderr, "Waitpid error: %s\n", strerror(errno));
     }
-
-    errno = saved_errno;
 
     return;
 }
@@ -54,7 +51,6 @@ void sigchld_handler(int sig) {
 }
 
 void keyboard_interrupt_handler(int sig) {
-    // TODO: defer to main loop by setting global flag (then shell won't need to be global anymore)
     if (shell.fg_pgid >= 0) {
         Kill(-shell.fg_pgid, sig);
         shell.fg_pgid = -1;

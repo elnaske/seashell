@@ -126,7 +126,7 @@ int parse_command(char ***p_next_token, char **argv_start, Command *cmd_out) {
     while (*next_token) {
         if (strcmp(*next_token, "|") == 0) {
             next_token++;
-            
+
             if (cmd.argc == 0) {
                 return PARSE_ERR_LEADING_PIPE;
             }
@@ -138,7 +138,6 @@ int parse_command(char ***p_next_token, char **argv_start, Command *cmd_out) {
         }
 
         RedirKind r = match_redirection(*next_token);
-
         if (r != REDIR_NONE) {
             next_token++;
 
@@ -166,7 +165,7 @@ int parse_command(char ***p_next_token, char **argv_start, Command *cmd_out) {
 
 int parse_line(char *line, size_t len, Job *job_out) {
     if (!job_out) return -1;
-    
+
     size_t token_cnt;
     char **tokens = tokenize_line(line, len, &token_cnt);
     if (!tokens) {
@@ -188,6 +187,7 @@ int parse_line(char *line, size_t len, Job *job_out) {
     char **argv_start = argv;
 
     Job job = {0};
+    job.prev_pipe = -1;
     job.run_in_bg = *(tokens[token_cnt - 1]) == '&';
     if (job.run_in_bg) {
         tokens[--token_cnt] = NULL;

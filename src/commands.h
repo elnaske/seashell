@@ -1,8 +1,9 @@
 #pragma once
-#include <stddef.h>
-#include <stdbool.h>
-#include "redirect.h"
 #include "options.h"
+#include "redirect.h"
+#include <stdbool.h>
+#include <stddef.h>
+#include <wait.h>
 
 typedef struct Shell Shell;
 
@@ -23,12 +24,13 @@ typedef struct Command {
     size_t argc;
     Redirect redirects[MAX_REDIRECTS];
     size_t n_redirects;
-    // bool run_in_bg;
 } Command;
 
 typedef struct Job {
     Command cmds[MAX_CMDS_PER_JOB];
     size_t cmd_cnt;
+    pid_t pgid;
+    int prev_pipe;
     bool run_in_bg;
 } Job;
 
@@ -38,5 +40,4 @@ int match_builtin(Command *cmd);
 
 int run_builtin(Shell *s, BuiltinKind b, Command *cmd);
 
-// int exec_command(Shell *s, Command *cmd, pid_t *pgid, bool is_last, int *prev_p);
-void exec_job(Shell *s, Job *job);
+void run_job(Shell *s, Job *job);

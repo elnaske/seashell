@@ -33,4 +33,8 @@ int save_fds(SavedFDs *fd_out);
 
 int restore_fds(SavedFDs *saved);
 
+int setup_pipe(int prev_pipe, int pipefd[2]);
+
+int close_pipe_read_end(int *prev_pipe, int pipefd[2]);
+
 int redirect_io(Command *cmd);

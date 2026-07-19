@@ -80,6 +80,51 @@ int restore_fds(SavedFDs *saved) {
     return return_val;
 }
 
+int setup_pipe(int prev_pipe, int pipefd[2]) {
+    if (prev_pipe > -1 && Dup2(prev_pipe, STDIN_FILENO) < 0) {
+        Close(prev_pipe);
+        return -1;
+    }
+
+    if (pipefd[1] > -1 && Dup2(pipefd[1], STDOUT_FILENO) < 0) {
+        Close(pipefd[1]);
+        return -1;
+    }
+
+    if (prev_pipe > -1 && Close(prev_pipe) < 0) {
+        return -1;
+    }
+    if (pipefd[0] > -1) {
+        int status = 0;
+        status = Close(pipefd[0]);
+        status = Close(pipefd[1]);
+        if (status < 0) {
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+int close_pipe_read_end(int *prev_pipe, int pipefd[2]) {
+    if (!prev_pipe) return -1;
+
+    if (*prev_pipe > -1 && Close(*prev_pipe) < 0) {
+        return -1;
+    }
+
+    if (pipefd[1] > -1) {
+        if (Close(pipefd[1]) < 0) {
+            return -1;
+        }
+        *prev_pipe = pipefd[0];
+    } else {
+        *prev_pipe = -1;
+    }
+
+    return 0;
+}
+
 int redirect_io(Command *cmd) {
     for (size_t i = 0; i < cmd->n_redirects; i++) {
         Redirect redir = cmd->redirects[i];

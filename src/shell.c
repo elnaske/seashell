@@ -16,7 +16,7 @@
 #define COL_BLUE "\033[34m"
 #define COL_CLR "\033[0m"
 
-extern sig_atomic_t sigchld_received;
+extern volatile sig_atomic_t sigchld_received;
 
 int shell_init(Shell *s) {
     s->pgid = getpgrp();
@@ -58,7 +58,7 @@ int shell_run(Shell *s) {
             continue;
         }
 
-        exec_job(s, &job);
+        run_job(s, &job);
 
         if (sigchld_received) {
             reap_children();
