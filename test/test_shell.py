@@ -170,8 +170,8 @@ def test_redirect_before_args():
         res = run_shell(f"""\
             cd {tmp}
             echo hello world > a.txt
-            grep > a.txt hello -o a.txt
-            cat a.txt
+            grep > b.txt hello -o a.txt
+            cat b.txt
             exit
             """)
 

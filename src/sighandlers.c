@@ -13,7 +13,7 @@
 
 extern Shell shell;
 
-volatile sig_atomic_t sigchld_received = false;
+volatile sig_atomic_t sigchld_received = 0;
 
 void install_signal_handler(int signum, void (*handler)(int)) {
     struct sigaction act = {0};
@@ -50,10 +50,10 @@ void reap_children() {
 void sigchld_handler(int sig) {
     (void)sig;
 
-    sigchld_received = true;
+    sigchld_received = 1;
 }
 
-void keyboard_interrupt(int sig) {
+void keyboard_interrupt_handler(int sig) {
     // TODO: defer to main loop by setting global flag (then shell won't need to be global anymore)
     if (shell.fg_pgid >= 0) {
         Kill(-shell.fg_pgid, sig);

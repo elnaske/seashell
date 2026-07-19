@@ -27,8 +27,8 @@ int shell_init(Shell *s) {
     }
 
     install_signal_handler(SIGCHLD, &sigchld_handler);
-    install_signal_handler(SIGINT, &keyboard_interrupt);
-    install_signal_handler(SIGTSTP, &keyboard_interrupt);
+    install_signal_handler(SIGINT, &keyboard_interrupt_handler);
+    install_signal_handler(SIGTSTP, &keyboard_interrupt_handler);
     install_signal_handler(SIGTTOU, SIG_IGN);
     install_signal_handler(SIGTTIN, SIG_IGN);
 
