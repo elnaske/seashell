@@ -1,4 +1,8 @@
 #pragma once
+#include <stddef.h>
+#include <wait.h>
+
+void unix_error(char *msg);
 
 pid_t Fork();
 
@@ -15,3 +19,13 @@ int Kill(pid_t pid, int sig);
 int Chdir(const char *path);
 
 char *Getcwd(char *buf, size_t size);
+
+int Open(char *file, int o_flag, int s_flag);
+
+int Close(int fd);
+
+int Dup(int fd);
+
+int Dup2(int fd, int fd2);
+
+int Pipe(int pipefd[2]);

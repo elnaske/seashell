@@ -1,16 +1,17 @@
+#include "syscall_wrappers.h"
+
 #include <errno.h>
+#include <fcntl.h>
 #include <signal.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
-#include "syscall_wrappers.h"
-
 void unix_error(char *msg) {
-    printf("%s: %s\n", msg, strerror(errno));
+    fprintf(stderr, "%s: %s\n", msg, strerror(errno));
 }
 
 pid_t Fork() {
@@ -79,4 +80,46 @@ char *Getcwd(char *buf, size_t size) {
         }
     }
     return cwd;
+}
+
+int Open(char *file, int o_flag, int s_flag) {
+    int fd;
+    if ((fd = open(file, o_flag, s_flag)) < 0) {
+        unix_error("File open error");
+        return -1;
+    }
+    return fd;
+}
+
+int Close(int fd) {
+    if (close(fd) < 0) {
+        unix_error("File close error");
+        return -1;
+    }
+    return 0;
+}
+
+int Dup(int fd) {
+    int new_fd;
+    if ((new_fd = dup(fd)) < 0) {
+        unix_error("Redirection error");
+        return -1;
+    }
+    return new_fd;
+}
+
+int Dup2(int fd, int fd2) {
+    if (dup2(fd, fd2) < 0) {
+        unix_error("Redirection error");
+        return -1;
+    }
+    return 0;
+}
+
+int Pipe(int pipefd[2]) {
+    if (pipe(pipefd) < 0) {
+        unix_error("Pipe error");
+        return -1;
+    }
+    return 0;
 }

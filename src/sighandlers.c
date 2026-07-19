@@ -1,16 +1,19 @@
 #define _GNU_SOURCE
 
+#include "sighandlers.h"
+
 #include <errno.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/wait.h>
 
-#include "sighandlers.h"
+#include "shell.h"
 #include "syscall_wrappers.h"
 
-extern pid_t fg_pgid;
+extern Shell shell;
+
+volatile sig_atomic_t sigchld_received = 0;
 
 void install_signal_handler(int signum, void (*handler)(int)) {
     struct sigaction act = {0};
@@ -20,39 +23,37 @@ void install_signal_handler(int signum, void (*handler)(int)) {
     act.sa_flags = SA_RESTART;
 
     if (sigaction(signum, &act, NULL) < 0) {
-        printf("Sigaction error: %s", strerror(errno));
+        fprintf(stderr, "Sigaction error: %s", strerror(errno));
         exit(1);
     }
 
     return;
 }
 
-void reap_children(int sig) {
-    (void)sig;
-
-    int saved_errno = errno;
+void reap_children() {
     pid_t pid;
 
-    // TODO: defer to end of main loop (set global var)
     while ((pid = waitpid(-1, NULL, WNOHANG)) > 0) {
-        printf("Reaped process %d\n", pid);
+        fprintf(stderr, "Reaped process %d\n", pid);
     }
 
     if (errno && errno != ECHILD) {
-        printf("Waitpid error: %s\n", strerror(errno));
+        fprintf(stderr, "Waitpid error: %s\n", strerror(errno));
     }
-
-    errno = saved_errno;
 
     return;
 }
 
-void keyboard_interrupt(int sig) {
+void sigchld_handler(int sig) {
     (void)sig;
 
-    if (fg_pgid >= 0) {
-        Kill(-fg_pgid, sig);
-        fg_pgid = -1;
+    sigchld_received = 1;
+}
+
+void keyboard_interrupt_handler(int sig) {
+    if (shell.fg_pgid >= 0) {
+        Kill(-shell.fg_pgid, sig);
+        shell.fg_pgid = -1;
     }
 
     return;
