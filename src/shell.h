@@ -7,6 +7,7 @@
 typedef struct Shell {
     pid_t pgid;
     pid_t fg_pgid;
+    int last_status;
     char cwd[MAX_PATHNAME_LENGTH];
     bool running;
 } Shell;

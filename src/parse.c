@@ -11,7 +11,7 @@
 #include "options.h"
 #include "redirect.h"
 
-void parse_error(int status) {
+void print_syntax_error(int status) {
     char *err;
 
     switch (status) {
@@ -27,11 +27,14 @@ void parse_error(int status) {
     case PARSE_ERR_DANGLING_PIPE:
         err = "dangling pipe";
         break;
+    case PARSE_ERR_AMPERSAND:
+        err = "non-final '&'";
+        break;
     default:
         return;
     }
 
-    fprintf(stderr, "Parse error: %s\n", err);
+    fprintf(stderr, "Syntax error: %s\n", err);
 }
 
 char **tokenize_line(char *line, size_t len, size_t *cnt_out) {
@@ -124,6 +127,13 @@ int parse_command(char ***p_next_token, char **argv_start, Command *cmd_out) {
     char **next_token = *p_next_token;
 
     while (*next_token) {
+        if (strcmp(*next_token, "&") == 0) {
+            next_token++;
+            // final ampersand is removed before parsing, so any ampersand is out of place
+            // once multiple jobs per line are supported, this will no return an error and instead begin a new job
+            return PARSE_ERR_AMPERSAND;
+        }
+
         if (strcmp(*next_token, "|") == 0) {
             next_token++;
 
@@ -172,43 +182,41 @@ int parse_line(char *line, size_t len, Job *job_out) {
         free(tokens);
         return PARSE_ERR_MALLOC;
     }
-    if (!token_cnt) {
-        free(tokens);
-        return PARSE_OK;
-    }
 
-    char **argv = malloc(sizeof(tokens) * (token_cnt + 1));
-    if (!argv) {
-        free(tokens);
-        return PARSE_ERR_MALLOC;
-    }
-
-    char **next_token = tokens;
-    char **argv_start = argv;
-
-    Job job = {0};
-    job.prev_pipe = -1;
-    job.run_in_bg = *(tokens[token_cnt - 1]) == '&';
-    if (job.run_in_bg) {
-        tokens[--token_cnt] = NULL;
-    }
-
-    while (*next_token) {
-        Command cmd = {0};
-
-        int status = parse_command(&next_token, argv_start, &cmd);
-        if (status != PARSE_OK) {
+    if (token_cnt) {
+        char **argv = malloc(sizeof(tokens) * (token_cnt + 1));
+        if (!argv) {
             free(tokens);
-            free(argv);
-            return status;
+            return PARSE_ERR_MALLOC;
         }
 
-        argv_start += cmd.argc + 1;
+        char **next_token = tokens;
+        char **argv_start = argv;
 
-        job.cmds[job.cmd_cnt++] = cmd;
+        Job job = {0};
+        job.prev_pipe = -1;
+        job.run_in_bg = *(tokens[token_cnt - 1]) == '&';
+        if (job.run_in_bg) {
+            tokens[--token_cnt] = NULL;
+        }
+
+        while (*next_token) {
+            Command cmd = {0};
+
+            int status = parse_command(&next_token, argv_start, &cmd);
+            if (status != PARSE_OK) {
+                free(tokens);
+                free(argv);
+                return status;
+            }
+
+            argv_start += cmd.argc + 1;
+
+            job.cmds[job.cmd_cnt++] = cmd;
+        }
+
+        *job_out = job;
     }
-
-    *job_out = job;
 
     free(tokens);
     return PARSE_OK;

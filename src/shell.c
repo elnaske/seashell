@@ -21,6 +21,7 @@ extern volatile sig_atomic_t sigchld_received;
 int shell_init(Shell *s) {
     s->pgid = getpgrp();
     s->fg_pgid = -1;
+    s->last_status = 0;
 
     if (!getcwd(s->cwd, MAX_PATHNAME_LENGTH)) {
         memcpy(s->cwd, "../", 4);
@@ -53,20 +54,23 @@ int shell_run(Shell *s) {
         Job job = {0};
         int status = parse_line(line, len, &job);
         if (status != PARSE_OK) {
-            parse_error(status);
+            print_syntax_error(status);
+            s->last_status = status;
             free(line);
             continue;
         }
 
-        run_job(s, &job);
+        status = run_job(s, &job);
+        // if (s->running)
+            s->last_status = status;
 
         if (sigchld_received) {
             reap_children();
-            sigchld_received = false;
+            sigchld_received = 0;
         }
 
         free_job(&job);
         free(line);
     }
-    return 0;
+    return s->last_status;
 }

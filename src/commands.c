@@ -35,6 +35,11 @@ int match_builtin(Command *cmd) {
 }
 
 int builtin_cd(Shell *s, Command *cmd) {
+    if (cmd->argc > 2) {
+        fprintf(stderr, "cd: too many arguments\n");
+        return -1;
+    }
+
     char *dst = cmd->argc > 1 ? cmd->argv[1] : getenv("HOME");
 
     if (Chdir(dst) < 0) {
@@ -48,6 +53,7 @@ int builtin_cd(Shell *s, Command *cmd) {
     return 0;
 }
 
+// TODO: wait on all commands in job
 int builtin_fg(Shell *s, Command *cmd) {
     if (cmd->argc == 1) {
         fprintf(stderr, "TODO: most recent job");
@@ -85,7 +91,7 @@ int run_builtin(Shell *s, BuiltinKind b, Command *cmd) {
     switch (b) {
     case BUILTIN_EXIT:
         s->running = false;
-        break;
+        return s->last_status;
     case BUILTIN_CD:
         status = builtin_cd(s, cmd);
         break;
@@ -108,10 +114,8 @@ int run_builtin(Shell *s, BuiltinKind b, Command *cmd) {
     return 0;
 }
 
-int run_command(Shell *s, Command *cmd, Job *job, bool is_last) {
+int run_command(Command *cmd, Job *job, bool is_last) {
     if (!cmd || !cmd->argc || !job) return -1;
-
-    (void)s; // TODO: use this for saving status codes
 
     int prev_pipe = job->prev_pipe;
 
@@ -156,49 +160,62 @@ int run_command(Shell *s, Command *cmd, Job *job, bool is_last) {
     return 0;
 }
 
-void run_job(Shell *s, Job *job) {
-    if (!job || !job->cmd_cnt) return;
+int run_job(Shell *s, Job *job) {
+    if (!job || !job->cmd_cnt) return -1;
 
     size_t cmds_remaining = job->cmd_cnt;
 
     for (size_t i = 0; i < job->cmd_cnt; i++) {
         Command cmd = job->cmds[i];
-        bool is_last_cmd = (i + 1 >= job->cmd_cnt);
+        int exec_status;
 
         BuiltinKind b = match_builtin(&cmd);
         if (b != NOT_A_BUILTIN) {
             cmds_remaining--;
-            if (run_builtin(s, b, &cmd) < 0) {
-                return;
+            if ((exec_status = run_builtin(s, b, &cmd)) != 0) {
+                return exec_status;
             }
         } else {
-            if (run_command(s, &cmd, job, is_last_cmd) < 0) {
-                return;
+            bool is_last_cmd = (i + 1 >= job->cmd_cnt);
+            if ((exec_status = run_command(&cmd, job, is_last_cmd)) != 0) {
+                return exec_status;
             }
         }
 
         if (!s->running) {
-            return;
+            return 0;
         }
     }
 
-    if (!cmds_remaining) {
-        return;
-    }
+    int job_status = 0;
 
-    if (!job->run_in_bg) {
-        Tcsetpgrp(STDIN_FILENO, job->pgid);
+    if (cmds_remaining) {
+        if (!job->run_in_bg) {
+            int cmd_status;
 
-        s->fg_pgid = job->pgid;
-        while (cmds_remaining) {
-            Waitpid(-job->pgid, NULL, WUNTRACED);
-            cmds_remaining--;
+            Tcsetpgrp(STDIN_FILENO, job->pgid);
+
+            s->fg_pgid = job->pgid;
+            while (cmds_remaining) {
+                Waitpid(-job->pgid, &cmd_status, WUNTRACED);
+                cmds_remaining--;
+            }
+            s->fg_pgid = -1;
+
+            Tcsetpgrp(STDIN_FILENO, s->pgid);
+
+            if (WIFEXITED(cmd_status)) {
+                job_status = WEXITSTATUS(cmd_status);
+            } else if (WIFSIGNALED(cmd_status)) {
+                job_status = 128 + WTERMSIG(cmd_status);
+            } else {
+                job_status = 1;
+            }
+
+        } else {
+            printf("%d\n", job->pgid);
         }
-        s->fg_pgid = -1;
-
-        Tcsetpgrp(STDIN_FILENO, s->pgid);
-
-    } else {
-        printf("%d\n", job->pgid);
     }
+
+    return job_status;
 }

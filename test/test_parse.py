@@ -7,8 +7,8 @@ def test_parse_err_missing_file():
         exit
         """)
 
-    assert res.returncode == 0
-    assert "Parse error" in res.stderr
+    assert res.returncode != 0
+    assert "Syntax error" in res.stderr
     assert "test" not in res.stdout
 
 
@@ -18,8 +18,8 @@ def test_parse_err_missing_file_2():
         exit
         """)
 
-    assert res.returncode == 0
-    assert "Parse error" in res.stderr
+    assert res.returncode != 0
+    assert "Syntax error" in res.stderr
 
 
 def test_parse_err_missing_file_3():
@@ -28,8 +28,8 @@ def test_parse_err_missing_file_3():
         exit
         """)
 
-    assert res.returncode == 0
-    assert "Parse error" in res.stderr
+    assert res.returncode != 0
+    assert "Syntax error" in res.stderr
 
 
 def test_parse_err_dangling_pipe():
@@ -38,8 +38,8 @@ def test_parse_err_dangling_pipe():
         exit
         """)
 
-    assert res.returncode == 0
-    assert "Parse error" in res.stderr
+    assert res.returncode != 0
+    assert "Syntax error" in res.stderr
 
 def test_parse_err_leading_pipe():
     res = run_shell("""\
@@ -47,8 +47,8 @@ def test_parse_err_leading_pipe():
         exit
         """)
 
-    assert res.returncode == 0
-    assert "Parse error" in res.stderr
+    assert res.returncode != 0
+    assert "Syntax error" in res.stderr
 
 
 def test_parse_err_bg_pipe():
@@ -57,7 +57,7 @@ def test_parse_err_bg_pipe():
         exit
         """)
 
-    assert res.returncode == 0
-    assert "Parse error" in res.stderr
+    assert res.returncode != 0
+    assert "Syntax error" in res.stderr
     assert "abc" not in res.stdout
     assert "cba" not in res.stdout

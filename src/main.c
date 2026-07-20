@@ -7,7 +7,5 @@ Shell shell = {0}; // needs to be accessible by sighandlers, hence a global vari
 int main() {
     shell_init(&shell);
 
-    shell_run(&shell);
-
-    return 0;
+    return shell_run(&shell);
 }

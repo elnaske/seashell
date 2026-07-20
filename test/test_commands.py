@@ -56,6 +56,6 @@ def test_err_not_a_cmd():
         exit
         """)
 
-    assert res.returncode == 0
+    assert res.returncode != 0
     assert "Execve error" in res.stderr
 

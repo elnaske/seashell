@@ -40,4 +40,4 @@ int match_builtin(Command *cmd);
 
 int run_builtin(Shell *s, BuiltinKind b, Command *cmd);
 
-void run_job(Shell *s, Job *job);
+int run_job(Shell *s, Job *job);
