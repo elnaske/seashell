@@ -19,24 +19,24 @@ def test_echo():
 
 def test_cd():
     res = run_shell("""\
-        cd /
+        cd ~
         pwd
         exit
         """)
 
     assert res.returncode == 0
-    assert "/" in res.stdout
+    assert os.path.expanduser('~') in res.stdout
 
 
 def test_cd_bare():
     res = run_shell("""\
-        cd /
+        cd
         pwd
         exit
         """)
 
     assert res.returncode == 0
-    assert "/home" in res.stdout
+    assert os.path.expanduser('~') in res.stdout
 
 
 def test_empty_line():
