@@ -34,7 +34,7 @@ pid_t Waitpid(pid_t pid, int *stat_loc, int options) {
 }
 
 int Tcsetpgrp(int fd, pid_t pgrp_id) {
-    if (tcsetpgrp(fd, pgrp_id) < 0) {
+    if (isatty(fd) && tcsetpgrp(fd, pgrp_id) < 0) {
         perror("Tcsetpgrp error");
         return -1;
     }
