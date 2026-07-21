@@ -136,20 +136,20 @@ int run_command(Command *cmd, Job *job, bool is_last) {
         Setpgid(0, job->pgid); // pgid = 0 for first command
 
         if (setup_pipe(prev_pipe, pipefd) < 0) {
-            return -1;
+            exit(1);
         }
         if (redirect_io(cmd) < 0) {
-            return -1;
+            exit(1);
         }
 
         Execvp(cmd->argv[0], cmd->argv);
     }
-    
-    Setpgid(pid, pid);
 
     if (job->pgid == 0) {
         job->pgid = pid;
     }
+    
+    Setpgid(pid, job->pgid);
 
     if (close_pipe_read_end(&prev_pipe, pipefd) < 0) {
         return -1;
@@ -197,8 +197,12 @@ int run_job(Shell *s, Job *job) {
 
             s->fg_pgid = job->pgid;
             while (cmds_remaining) {
-                Waitpid(-job->pgid, &cmd_status, WUNTRACED);
-                cmds_remaining--;
+                pid_t pid = Waitpid(-job->pgid, &cmd_status, WUNTRACED);
+                if (pid > 0) {
+                    cmds_remaining--;
+                } else if (errno != EINTR) {
+                    break;
+                }
             }
             s->fg_pgid = -1;
 
