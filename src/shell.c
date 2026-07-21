@@ -18,8 +18,6 @@
 #define COL_CLR "\033[0m"
 
 extern volatile sig_atomic_t sigchld_received;
-extern volatile sig_atomic_t sigint_received;
-extern volatile sig_atomic_t sigtstp_received;
 
 int shell_init(Shell *s) {
     JobTableEntry *jt = calloc(MAX_JOBS, sizeof(JobTableEntry));
@@ -92,17 +90,32 @@ bool job_table_is_full(Shell *s) {
     return true;
 }
 
-int job_table_update_state(Shell *s, int job_id, int status) {
-    if (!is_job_id_valid(s, job_id)) return -1;
+// int job_table_update_state(Shell *s, int job_id, int status) {
+//     if (!is_job_id_valid(s, job_id)) return -1;
 
-    if (WIFSIGNALED(status) && (WTERMSIG(status) == SIGTSTP || WTERMSIG(status) == SIGSTOP)) {
-        // TODO: fix this
-        s->job_table[job_id].state = JOB_STATE_STOPPED;
-    } else {
-        s->job_table[job_id].state = JOB_STATE_DONE;
-    }
+//     if (WIFSIGNALED(status) && (WTERMSIG(status) == SIGTSTP || WTERMSIG(status) == SIGSTOP)) {
+//         // TODO: fix this
+//         s->job_table[job_id].state = JOB_STATE_STOPPED;
+//     } else {
+//         s->job_table[job_id].state = JOB_STATE_DONE;
+//     }
+
+//     return 0;
+// }
+int job_table_update_state(Shell *s, int job_id, int state) {
+    if (!is_job_id_valid(s, job_id)) return -1;
+    s->job_table[job_id].state = state;
 
     return 0;
+}
+
+int job_table_find_job_id(Shell *s, pid_t pgid) {
+    for (size_t i = 0; i < MAX_JOBS; i++) {
+        if (s->job_table[i].pgid == pgid) {
+            return i;
+        }
+    }
+    return -1;
 }
 
 int job_table_mark_finished(Shell *s, pid_t pid) {
@@ -166,7 +179,7 @@ int shell_run(Shell *s) {
             reap_children();
             sigchld_received = 0;
         }
-        
+
         job_table_mark_free(s);
 
         free_job(&job);

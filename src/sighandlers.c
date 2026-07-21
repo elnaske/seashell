@@ -32,8 +32,9 @@ void install_signal_handler(int signum, void (*handler)(int)) {
 
 void reap_children(Shell *s) {
     pid_t pid;
+    int status;
 
-    while ((pid = waitpid(-1, NULL, WNOHANG)) > 0) {
+    while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
         fprintf(stderr, "Reaped process %d\n", pid);
         job_table_mark_finished(s, pid);
     }

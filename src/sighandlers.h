@@ -6,8 +6,4 @@ void reap_children();
 
 void sigchld_handler(int sig);
 
-void sigint_handler(int sig);
-
-void sigtstp_handler(int sig);
-
 void keyboard_interrupt_handler(int sig);

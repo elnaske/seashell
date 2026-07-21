@@ -35,7 +35,7 @@ def test_sigint_returncode():
 
     stdout, _ = p.communicate("exit\n", timeout=2)
 
-    assert p.returncode != 0
+    assert p.returncode == 130
 
 
 def test_sigtstp():
@@ -69,7 +69,7 @@ def test_sigtstp_returncode():
 
     stdout, _ = p.communicate("exit\n", timeout=2)
 
-    assert p.returncode != 0
+    assert p.returncode == 148
 
 
 def test_bg_exec():

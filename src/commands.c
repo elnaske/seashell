@@ -32,7 +32,12 @@ int await_in_fg(Shell *s, int job_id, pid_t pgid, size_t cmd_cnt) {
     while (cmds_remaining) {
         pid_t pid = Waitpid(-pgid, &cmd_status, WUNTRACED);
         if (pid > 0) {
-            cmds_remaining--;
+            if (WIFSTOPPED(cmd_status)) {
+                break;
+            }
+            if (WIFEXITED(cmd_status) || WIFSIGNALED(cmd_status)) {
+                cmds_remaining--;
+            }
         } else if (errno != EINTR) {
             break;
         }
@@ -42,15 +47,18 @@ int await_in_fg(Shell *s, int job_id, pid_t pgid, size_t cmd_cnt) {
     Tcsetpgrp(STDIN_FILENO, s->pgid);
 
     int job_status;
-    if (WIFEXITED(cmd_status)) {
-        job_status = WEXITSTATUS(cmd_status);
-    } else if (WIFSIGNALED(cmd_status)) {
+    if (WIFSIGNALED(cmd_status)) {
+        job_table_update_state(s, job_id, JOB_STATE_DONE);
+        printf("\n");
         job_status = 128 + WTERMSIG(cmd_status);
+    } else if (WIFSTOPPED(cmd_status)) {
+        job_table_update_state(s, job_id, JOB_STATE_STOPPED);
+        printf("\n[%d] Stopped\n", job_id);
+        job_status = 128 + WSTOPSIG(cmd_status);
     } else {
-        job_status = 1;
+        job_table_update_state(s, job_id, JOB_STATE_DONE);
+        job_status = WEXITSTATUS(cmd_status);
     }
-
-    job_table_update_state(s, job_id, job_status);
 
     return job_status;
 }
@@ -102,12 +110,15 @@ int builtin_fg(Shell *s, Command *cmd) {
     int job_id = strtol(cmd->argv[1], NULL, 10);
     if (!is_job_id_valid(s, job_id)) {
         fprintf(stderr, "fg: invalid job number\n");
+        return 1;
     }
 
     int pgid = s->job_table[job_id].pgid;
     int cmd_cnt = s->job_table[job_id].cmd_cnt;
+    job_table_update_state(s, job_id, JOB_STATE_FG);
 
     kill(-pgid, SIGCONT);
+
     return await_in_fg(s, job_id, pgid, cmd_cnt);
 }
 

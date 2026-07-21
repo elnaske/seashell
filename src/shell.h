@@ -26,7 +26,7 @@ typedef struct JobTableEntry {
 typedef struct Shell {
     JobTableEntry *job_table;
     pid_t pgid;
-    pid_t fg_pgid;
+    volatile pid_t fg_pgid;
     uint8_t last_status;
     char cwd[MAX_PATHNAME_LENGTH];
     bool running;
@@ -41,6 +41,8 @@ bool is_job_id_valid(Shell *s, int job_id);
 bool job_table_is_full(Shell *s);
 
 int job_table_update_state(Shell *s, int job_id, int status);
+
+int job_table_find_job_id(Shell *s, pid_t pgid);
 
 int job_table_mark_finished(Shell *s, pid_t pid);
 
