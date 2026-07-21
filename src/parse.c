@@ -10,6 +10,7 @@
 #include "commands.h"
 #include "options.h"
 #include "redirect.h"
+#include "shell.h"
 
 void print_syntax_error(int status) {
     char *err;
@@ -35,6 +36,18 @@ void print_syntax_error(int status) {
     }
 
     fprintf(stderr, "Syntax error: %s\n", err);
+}
+
+static inline bool is_operator(char *s) {
+    return strcmp(s, "<") == 0 || strcmp(s, ">") == 0 || strcmp(s, ">>") == 0 || strcmp(s, "2>") == 0 || strcmp(s, "2>>") == 0 || strcmp(s, "&>") == 0 || strcmp(s, "&>>") == 0;
+}
+
+static inline bool is_redirection(RedirKind r) {
+    return r != REDIR_NONE;
+}
+
+static inline bool is_var(char **next_token) {
+    return (*next_token)[0] == '$' && (*next_token)[1] != '\0';
 }
 
 char **tokenize_line(char *line, size_t len, size_t *cnt_out) {
@@ -79,10 +92,6 @@ char **tokenize_line(char *line, size_t len, size_t *cnt_out) {
     return tokens;
 }
 
-static inline bool is_operator(char *s) {
-    return strcmp(s, "<") == 0 || strcmp(s, ">") == 0 || strcmp(s, ">>") == 0 || strcmp(s, "2>") == 0 || strcmp(s, "2>>") == 0 || strcmp(s, "&>") == 0 || strcmp(s, "&>>") == 0;
-}
-
 int parse_redirection(RedirKind r, char **next_token, Command *cmd) {
     if (*next_token == NULL || is_operator(*next_token) || strcmp(*next_token, "|") == 0) {
         return PARSE_ERR_FILENAME;
@@ -118,7 +127,23 @@ int parse_redirection(RedirKind r, char **next_token, Command *cmd) {
     return PARSE_OK;
 }
 
-int parse_command(char ***p_next_token, char **argv_start, Command *cmd_out) {
+char *expand_var(char **next_token, char *exit_code_start) {
+    char *expanded;
+
+    if (strcmp(*next_token, "$?") == 0) {
+        expanded = exit_code_start;
+    } else {
+        char *env_var = getenv(*next_token + 1); // skip '$'
+        if (env_var) {
+            expanded = env_var;
+        } else {
+            expanded = "";
+        }
+    }
+    return expanded;
+}
+
+int parse_command(char ***p_next_token, char **argv_start, char *exit_code_start, Command *cmd_out) {
     if (!cmd_out) return -1;
 
     Command cmd = {0};
@@ -148,13 +173,15 @@ int parse_command(char ***p_next_token, char **argv_start, Command *cmd_out) {
         }
 
         RedirKind r = match_redirection(*next_token);
-        if (r != REDIR_NONE) {
+        if (is_redirection(r)) {
             next_token++;
 
             int status = parse_redirection(r, next_token, &cmd);
             if (status != PARSE_OK) {
                 return status;
             }
+        } else if (is_var(next_token)) {
+            cmd.argv[cmd.argc++] = expand_var(next_token, exit_code_start);
         } else {
             cmd.argv[cmd.argc++] = *next_token;
         }
@@ -173,7 +200,7 @@ int parse_command(char ***p_next_token, char **argv_start, Command *cmd_out) {
     return PARSE_OK;
 }
 
-int parse_line(char *line, size_t len, Job *job_out) {
+int parse_line(Shell *s, char *line, size_t len, Job *job_out) {
     if (!job_out) return -1;
 
     size_t token_cnt;
@@ -184,14 +211,26 @@ int parse_line(char *line, size_t len, Job *job_out) {
     }
 
     if (token_cnt) {
-        char **argv = malloc(sizeof(tokens) * (token_cnt + 1));
-        if (!argv) {
+        size_t max_argv_len = sizeof(tokens) * (token_cnt + 1);
+        size_t exit_code_str_len = 4; // three digits (8-bits) + null terminator
+
+        /*
+         * Arena allocation that holds args (pointers into line), a NULL separator, and the previous exit code (last 4 bytes; for expanding $?)
+         * i.e.
+         * arg_arena: [[argv pointers], NULL, [padding], "130"]]
+         *             |  |   |
+         * line:      [..0...0.....0]
+         */
+        void *arg_arena = malloc(max_argv_len + exit_code_str_len);
+        if (!arg_arena) {
             free(tokens);
             return PARSE_ERR_MALLOC;
         }
 
-        char **next_token = tokens;
-        char **argv_start = argv;
+        char **argv_start = arg_arena;
+        char *exit_code_start = arg_arena + max_argv_len;
+
+        snprintf(exit_code_start, exit_code_str_len, "%d", s->last_status);
 
         Job job = {0};
         job.prev_pipe = -1;
@@ -200,13 +239,14 @@ int parse_line(char *line, size_t len, Job *job_out) {
             tokens[--token_cnt] = NULL;
         }
 
+        char **next_token = tokens;
         while (*next_token) {
             Command cmd = {0};
 
-            int status = parse_command(&next_token, argv_start, &cmd);
+            int status = parse_command(&next_token, argv_start, exit_code_start, &cmd);
             if (status != PARSE_OK) {
                 free(tokens);
-                free(argv);
+                free(arg_arena);
                 return status;
             }
 

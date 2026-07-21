@@ -37,13 +37,13 @@ int match_builtin(Command *cmd) {
 int builtin_cd(Shell *s, Command *cmd) {
     if (cmd->argc > 2) {
         fprintf(stderr, "cd: too many arguments\n");
-        return -1;
+        return 1;
     }
 
     char *dst = cmd->argc > 1 ? cmd->argv[1] : getenv("HOME");
 
     if (Chdir(dst) < 0) {
-        return -1;
+        return 1;
     }
 
     if (!Getcwd(s->cwd, 100) && errno == ERANGE) {
@@ -57,7 +57,7 @@ int builtin_cd(Shell *s, Command *cmd) {
 int builtin_fg(Shell *s, Command *cmd) {
     if (cmd->argc == 1) {
         fprintf(stderr, "TODO: most recent job");
-        return -1;
+        return 1;
     }
 
     pid_t pid = strtol(cmd->argv[1], NULL, 10);
@@ -102,7 +102,7 @@ int run_builtin(Shell *s, BuiltinKind b, Command *cmd) {
         break;
     }
 
-    if (status < 0) {
+    if (status != 0) {
         restore_fds(&saved_fds);
         return status;
     }
@@ -144,12 +144,12 @@ int run_command(Command *cmd, Job *job, bool is_last) {
 
         Execvp(cmd->argv[0], cmd->argv);
     }
+    
+    Setpgid(pid, pid);
 
     if (job->pgid == 0) {
         job->pgid = pid;
     }
-
-    Setpgid(pid, pid);
 
     if (close_pipe_read_end(&prev_pipe, pipefd) < 0) {
         return -1;

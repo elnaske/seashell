@@ -1,6 +1,7 @@
 #include "shell.h"
 
 #include <signal.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -38,6 +39,10 @@ int shell_init(Shell *s) {
     return 0;
 }
 
+static inline void set_last_status(Shell *s, int status) {
+    s->last_status = (uint8_t)abs(status);
+}
+
 int shell_run(Shell *s) {
     while (s->running) {
         printf(COL_GREEN "seashell" COL_CLR ":" COL_BLUE "%s" COL_CLR "$ ", s->cwd);
@@ -52,17 +57,16 @@ int shell_run(Shell *s) {
         }
 
         Job job = {0};
-        int status = parse_line(line, len, &job);
+        int status = parse_line(s, line, len, &job);
         if (status != PARSE_OK) {
             print_syntax_error(status);
-            s->last_status = status;
+            set_last_status(s, status);
             free(line);
             continue;
         }
 
         status = run_job(s, &job);
-        // if (s->running)
-            s->last_status = status;
+        set_last_status(s, status);
 
         if (sigchld_received) {
             reap_children();
