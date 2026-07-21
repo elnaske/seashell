@@ -1,6 +1,7 @@
 #include "shell.h"
 
 #include <signal.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -21,6 +22,7 @@ extern volatile sig_atomic_t sigchld_received;
 int shell_init(Shell *s) {
     s->pgid = getpgrp();
     s->fg_pgid = -1;
+    s->last_status = 0;
 
     if (!getcwd(s->cwd, MAX_PATHNAME_LENGTH)) {
         memcpy(s->cwd, "../", 4);
@@ -37,6 +39,10 @@ int shell_init(Shell *s) {
     return 0;
 }
 
+static inline void set_last_status(Shell *s, int status) {
+    s->last_status = (uint8_t)abs(status);
+}
+
 int shell_run(Shell *s) {
     while (s->running) {
         printf(COL_GREEN "seashell" COL_CLR ":" COL_BLUE "%s" COL_CLR "$ ", s->cwd);
@@ -51,22 +57,24 @@ int shell_run(Shell *s) {
         }
 
         Job job = {0};
-        int status = parse_line(line, len, &job);
+        int status = parse_line(s, line, len, &job);
         if (status != PARSE_OK) {
-            parse_error(status);
+            print_syntax_error(status);
+            set_last_status(s, status);
             free(line);
             continue;
         }
 
-        run_job(s, &job);
+        status = run_job(s, &job);
+        set_last_status(s, status);
 
         if (sigchld_received) {
             reap_children();
-            sigchld_received = false;
+            sigchld_received = 0;
         }
 
         free_job(&job);
         free(line);
     }
-    return 0;
+    return s->last_status;
 }

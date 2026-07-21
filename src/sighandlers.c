@@ -23,7 +23,7 @@ void install_signal_handler(int signum, void (*handler)(int)) {
     act.sa_flags = SA_RESTART;
 
     if (sigaction(signum, &act, NULL) < 0) {
-        fprintf(stderr, "Sigaction error: %s", strerror(errno));
+        perror("Sigaction error");
         exit(1);
     }
 
@@ -38,7 +38,7 @@ void reap_children() {
     }
 
     if (errno && errno != ECHILD) {
-        fprintf(stderr, "Waitpid error: %s\n", strerror(errno));
+        perror("Waitpid error");
     }
 
     return;
