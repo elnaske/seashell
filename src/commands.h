@@ -12,6 +12,7 @@ typedef enum {
     BUILTIN_EXIT,
     BUILTIN_CD,
     BUILTIN_FG,
+    BUILTIN_JOBS,
 } BuiltinKind;
 
 typedef enum {
@@ -30,14 +31,11 @@ typedef struct Job {
     Command cmds[MAX_CMDS_PER_JOB];
     size_t cmd_cnt;
     pid_t pgid;
+    pid_t last_pid;
     int prev_pipe;
     bool run_in_bg;
 } Job;
 
 void free_job(Job *job);
-
-int match_builtin(Command *cmd);
-
-int run_builtin(Shell *s, BuiltinKind b, Command *cmd);
 
 int run_job(Shell *s, Job *job);

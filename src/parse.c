@@ -227,7 +227,7 @@ int parse_line(Shell *s, char *line, size_t len, Job *job_out) {
         }
 
         char **argv_start = arg_arena;
-        char *exit_code_start = arg_arena + max_argv_len;
+        char *exit_code_start = (char *)arg_arena + max_argv_len;
 
         snprintf(exit_code_start, exit_code_str_len, "%d", s->last_status);
 

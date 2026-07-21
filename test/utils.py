@@ -1,12 +1,13 @@
 
 import subprocess
 
-def run_shell(cmd):
+def run_shell(cmd, timeout=5):
     return subprocess.run(
         "./seashell",
         input=cmd,
         text=True,
         capture_output=True,
+        timeout=timeout,
     )
 
 

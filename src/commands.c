@@ -21,6 +21,40 @@ void free_job(Job *job) {
     job->cmd_cnt = 0;
 }
 
+int await_in_fg(Shell *s, int job_id, pid_t pgid, size_t cmd_cnt) {
+    int cmd_status;
+
+    Tcsetpgrp(STDIN_FILENO, pgid);
+
+    s->fg_pgid = pgid;
+
+    size_t cmds_remaining = cmd_cnt;
+    while (cmds_remaining) {
+        pid_t pid = Waitpid(-pgid, &cmd_status, WUNTRACED);
+        if (pid > 0) {
+            cmds_remaining--;
+        } else if (errno != EINTR) {
+            break;
+        }
+    }
+    s->fg_pgid = -1;
+
+    Tcsetpgrp(STDIN_FILENO, s->pgid);
+
+    int job_status;
+    if (WIFEXITED(cmd_status)) {
+        job_status = WEXITSTATUS(cmd_status);
+    } else if (WIFSIGNALED(cmd_status)) {
+        job_status = 128 + WTERMSIG(cmd_status);
+    } else {
+        job_status = 1;
+    }
+
+    job_table_update_state(s, job_id, job_status);
+
+    return job_status;
+}
+
 int match_builtin(Command *cmd) {
     char *arg = cmd->argv[0];
 
@@ -30,8 +64,14 @@ int match_builtin(Command *cmd) {
         return BUILTIN_CD;
     if (strcmp(arg, "fg") == 0)
         return BUILTIN_FG;
+    if (strcmp(arg, "jobs") == 0)
+        return BUILTIN_JOBS;
 
     return NOT_A_BUILTIN;
+}
+
+static inline bool is_builtin(BuiltinKind b) {
+    return b != NOT_A_BUILTIN;
 }
 
 int builtin_cd(Shell *s, Command *cmd) {
@@ -53,23 +93,26 @@ int builtin_cd(Shell *s, Command *cmd) {
     return 0;
 }
 
-// TODO: wait on all commands in job
 int builtin_fg(Shell *s, Command *cmd) {
     if (cmd->argc == 1) {
-        fprintf(stderr, "TODO: most recent job");
+        fprintf(stderr, "TODO: most recent job\n");
         return 1;
     }
 
-    pid_t pid = strtol(cmd->argv[1], NULL, 10);
+    int job_id = strtol(cmd->argv[1], NULL, 10);
+    if (!is_job_id_valid(s, job_id)) {
+        fprintf(stderr, "fg: invalid job number\n");
+    }
 
-    kill(pid, SIGCONT);
+    int pgid = s->job_table[job_id].pgid;
+    int cmd_cnt = s->job_table[job_id].cmd_cnt;
 
-    s->fg_pgid = pid;
-    Waitpid(pid, NULL, WUNTRACED);
-    s->fg_pgid = -1;
+    kill(-pgid, SIGCONT);
+    return await_in_fg(s, job_id, pgid, cmd_cnt);
+}
 
-    Tcsetpgrp(STDIN_FILENO, s->pgid);
-
+int builtin_jobs(Shell *s) {
+    job_table_print(s);
     return 0;
 }
 
@@ -97,6 +140,9 @@ int run_builtin(Shell *s, BuiltinKind b, Command *cmd) {
         break;
     case BUILTIN_FG:
         status = builtin_fg(s, cmd);
+        break;
+    case BUILTIN_JOBS:
+        status = builtin_jobs(s);
         break;
     default:
         break;
@@ -148,7 +194,7 @@ int run_command(Command *cmd, Job *job, bool is_last) {
     if (job->pgid == 0) {
         job->pgid = pid;
     }
-    
+
     Setpgid(pid, job->pgid);
 
     if (close_pipe_read_end(&prev_pipe, pipefd) < 0) {
@@ -156,6 +202,7 @@ int run_command(Command *cmd, Job *job, bool is_last) {
     }
 
     job->prev_pipe = prev_pipe;
+    job->last_pid = pid;
 
     return 0;
 }
@@ -170,12 +217,17 @@ int run_job(Shell *s, Job *job) {
         int exec_status;
 
         BuiltinKind b = match_builtin(&cmd);
-        if (b != NOT_A_BUILTIN) {
+        if (is_builtin(b)) {
             cmds_remaining--;
             if ((exec_status = run_builtin(s, b, &cmd)) != 0) {
                 return exec_status;
             }
         } else {
+            if (job_table_is_full(s)) {
+                fprintf(stderr, "Shell error: max number of jobs reached\n");
+                return -1;
+            }
+
             bool is_last_cmd = (i + 1 >= job->cmd_cnt);
             if ((exec_status = run_command(&cmd, job, is_last_cmd)) != 0) {
                 return exec_status;
@@ -190,34 +242,15 @@ int run_job(Shell *s, Job *job) {
     int job_status = 0;
 
     if (cmds_remaining) {
+        int job_id = add_job_table_entry(s, job);
+        if (job_id < 0) {
+            return -1;
+        }
+
         if (!job->run_in_bg) {
-            int cmd_status;
-
-            Tcsetpgrp(STDIN_FILENO, job->pgid);
-
-            s->fg_pgid = job->pgid;
-            while (cmds_remaining) {
-                pid_t pid = Waitpid(-job->pgid, &cmd_status, WUNTRACED);
-                if (pid > 0) {
-                    cmds_remaining--;
-                } else if (errno != EINTR) {
-                    break;
-                }
-            }
-            s->fg_pgid = -1;
-
-            Tcsetpgrp(STDIN_FILENO, s->pgid);
-
-            if (WIFEXITED(cmd_status)) {
-                job_status = WEXITSTATUS(cmd_status);
-            } else if (WIFSIGNALED(cmd_status)) {
-                job_status = 128 + WTERMSIG(cmd_status);
-            } else {
-                job_status = 1;
-            }
-
+            job_status = await_in_fg(s, job_id, job->pgid, cmds_remaining);
         } else {
-            printf("%d\n", job->pgid);
+            printf("[%d] %d\n", job_id, job->pgid);
         }
     }
 
