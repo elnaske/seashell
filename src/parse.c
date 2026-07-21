@@ -206,7 +206,6 @@ int parse_line(Shell *s, char *line, size_t len, Job *job_out) {
     size_t token_cnt;
     char **tokens = tokenize_line(line, len, &token_cnt);
     if (!tokens) {
-        free(tokens);
         return PARSE_ERR_MALLOC;
     }
 
