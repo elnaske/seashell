@@ -10,7 +10,7 @@
 #include "../cmd/commands.h"
 #include "../io/redirect.h"
 #include "../options.h"
-#include "../shell.h"
+#include "../core/shell.h"
 
 void print_syntax_error(int status) {
     char *err;
@@ -200,8 +200,8 @@ int parse_command(char ***p_next_token, char **argv_start, char *exit_code_start
     return PARSE_OK;
 }
 
-int parse_line(Shell *s, char *line, size_t len, Job *job_out) {
-    if (!job_out) return -1;
+int parse_line(Shell *s, char *line, size_t len, Pipeline *pl_out) {
+    if (!pl_out) return -1;
 
     size_t token_cnt;
     char **tokens = tokenize_line(line, len, &token_cnt);
@@ -231,10 +231,10 @@ int parse_line(Shell *s, char *line, size_t len, Job *job_out) {
 
         snprintf(exit_code_start, exit_code_str_len, "%d", s->last_status);
 
-        Job job = {0};
-        job.prev_pipe = -1;
-        job.run_in_bg = *(tokens[token_cnt - 1]) == '&';
-        if (job.run_in_bg) {
+        Pipeline pl = {0};
+        pl.prev_pipe = -1;
+        pl.run_in_bg = *(tokens[token_cnt - 1]) == '&';
+        if (pl.run_in_bg) {
             tokens[--token_cnt] = NULL;
         }
 
@@ -251,10 +251,10 @@ int parse_line(Shell *s, char *line, size_t len, Job *job_out) {
 
             argv_start += cmd.argc + 1;
 
-            job.cmds[job.cmd_cnt++] = cmd;
+            pl.cmds[pl.cmd_cnt++] = cmd;
         }
 
-        *job_out = job;
+        *pl_out = pl;
     }
 
     free(tokens);

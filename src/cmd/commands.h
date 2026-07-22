@@ -19,17 +19,17 @@ typedef struct Command {
     size_t n_redirects;
 } Command;
 
-typedef struct Job {
+typedef struct Pipeline {
     Command cmds[MAX_CMDS_PER_JOB];
     size_t cmd_cnt;
     pid_t pgid;
     pid_t last_pid;
     int prev_pipe;
     bool run_in_bg;
-} Job;
+} Pipeline;
 
-void free_job(Job *job);
+void free_pipeline(Pipeline *pl);
 
-int run_job(Shell *s, Job *job);
+int run_pipeline(Shell *s, Pipeline *pl);
 
 int await_job(Shell *s, int job_id, pid_t pgid, size_t cmd_cnt);

@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../shell.h"
+#include "../core/shell.h"
 #include "syscall_wrappers.h"
 
 extern Shell shell;
@@ -35,10 +35,10 @@ void reap_children(Shell *s) {
     int status;
 
     while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
-        int job_id = job_table_find_job_id(s, pid);
-        if (is_job_id_valid(s, job_id)) {
+        int job_id = jt_get_job_id(s, pid);
+        if (job_id_is_valid(s, job_id)) {
             fprintf(stderr, "[%d] Done\n", job_id);
-            job_table_update_state(s, job_id, JOB_STATE_DONE);
+            jt_update_job_state(s, job_id, JOB_STATE_DONE);
         }
     }
 

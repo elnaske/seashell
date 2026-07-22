@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../shell.h"
+#include "../core/shell.h"
 #include "../sys/syscall_wrappers.h"
 #include "commands.h"
 
@@ -97,13 +97,12 @@ int builtin_cd(Shell *s, Command *cmd) {
 
 int builtin_fg_bg(Shell *s, Command *cmd, bool run_in_bg) {
     int new_state = run_in_bg ? JOB_STATE_BG : JOB_STATE_FG;
-    JobTableEntry *jt = s->job_table;
 
     int job_id = -1;
     if (cmd->argc == 1) {
         // TODO: resume most recent job instead of first job id
         for (int i = 0; i < MAX_JOBS; i++) {
-            int curr_state = jt[i].state;
+            int curr_state = s->jt[i].state;
             if (curr_state == JOB_STATE_STOPPED || (!run_in_bg && curr_state == JOB_STATE_BG)) {
                 job_id = i;
                 break;
@@ -117,24 +116,24 @@ int builtin_fg_bg(Shell *s, Command *cmd, bool run_in_bg) {
         job_id = strtol(cmd->argv[1], NULL, 10);
     }
 
-    if (!is_job_id_valid(s, job_id)) {
+    if (!job_id_is_valid(s, job_id)) {
         fprintf(stderr, "%s: invalid job number\n", cmd->argv[0]);
         return 1;
     }
-    if (run_in_bg && jt[job_id].state == JOB_STATE_BG) {
+    if (run_in_bg && s->jt[job_id].state == JOB_STATE_BG) {
         fprintf(stderr, "bg: job %d already in background\n", job_id);
         return 1;
     }
 
-    int pgid = jt[job_id].pgid;
-    job_table_update_state(s, job_id, new_state);
+    int pgid = s->jt[job_id].pgid;
+    jt_update_job_state(s, job_id, new_state);
 
     printf("[%d] %d", job_id, pgid);
 
     kill(-pgid, SIGCONT);
 
     if (!run_in_bg) {
-        int cmd_cnt = jt[job_id].cmd_cnt;
+        int cmd_cnt = s->jt[job_id].cmd_cnt;
         return await_job(s, job_id, pgid, cmd_cnt);
     }
 
@@ -142,6 +141,6 @@ int builtin_fg_bg(Shell *s, Command *cmd, bool run_in_bg) {
 }
 
 int builtin_jobs(Shell *s) {
-    job_table_print(s);
+    jt_print(s);
     return 0;
 }
