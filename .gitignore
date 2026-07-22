@@ -3,7 +3,8 @@
 
 !src/
 !src/**/
-!src/**/*{.c, .h}
+!src/**/*.c
+!src/**/*.h
 
 !test/
 !test/*.py

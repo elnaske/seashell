@@ -14,6 +14,8 @@
 #include "../sys/syscall_wrappers.h"
 #include "../shell.h"
 
+#include "builtins.h"
+
 void free_job(Job *job) {
     if (!job) return;
     free(job->cmds[0].argv); // all command argvs share the same allocation, so we only free the first one
@@ -21,7 +23,7 @@ void free_job(Job *job) {
     job->cmd_cnt = 0;
 }
 
-int await_in_fg(Shell *s, int job_id, pid_t pgid, size_t cmd_cnt) {
+int await_job(Shell *s, int job_id, pid_t pgid, size_t cmd_cnt) {
     int cmd_status;
 
     Tcsetpgrp(STDIN_FILENO, pgid);
@@ -63,171 +65,6 @@ int await_in_fg(Shell *s, int job_id, pid_t pgid, size_t cmd_cnt) {
     return job_status;
 }
 
-int match_builtin(Command *cmd) {
-    char *arg = cmd->argv[0];
-
-    if (strcmp(arg, "exit") == 0)
-        return BUILTIN_EXIT;
-    if (strcmp(arg, "cd") == 0)
-        return BUILTIN_CD;
-    if (strcmp(arg, "fg") == 0)
-        return BUILTIN_FG;
-    if (strcmp(arg, "bg") == 0)
-        return BUILTIN_BG;
-    if (strcmp(arg, "jobs") == 0)
-        return BUILTIN_JOBS;
-
-    return NOT_A_BUILTIN;
-}
-
-static inline bool is_builtin(BuiltinKind b) {
-    return b != NOT_A_BUILTIN;
-}
-
-int builtin_cd(Shell *s, Command *cmd) {
-    if (cmd->argc > 2) {
-        fprintf(stderr, "cd: too many arguments\n");
-        return 1;
-    }
-
-    char *dst = cmd->argc > 1 ? cmd->argv[1] : getenv("HOME");
-
-    if (Chdir(dst) < 0) {
-        return 1;
-    }
-
-    if (!Getcwd(s->cwd, 100) && errno == ERANGE) {
-        memcpy(s->cwd, "../", 4);
-    }
-
-    return 0;
-}
-
-int builtin_fg(Shell *s, Command *cmd) {
-    int job_id = -1;
-    if (cmd->argc == 1) {
-        // TODO: resume most recent job instead of first job id
-        for (int i = 0; i < MAX_JOBS; i++) {
-            int curr_state = s->job_table[i].state;
-            if (curr_state == JOB_STATE_BG || curr_state == JOB_STATE_STOPPED) {
-                job_id = i;
-                break;
-            }
-            if (job_id < 0) {
-                fprintf(stderr, "fg: no current jobs\n");
-                return 1;
-            }
-        }
-    } else {
-        job_id = strtol(cmd->argv[1], NULL, 10);
-    }
-
-    if (!is_job_id_valid(s, job_id)) {
-        fprintf(stderr, "fg: invalid job number\n");
-        return 1;
-    }
-
-    int pgid = s->job_table[job_id].pgid;
-    int cmd_cnt = s->job_table[job_id].cmd_cnt;
-    job_table_update_state(s, job_id, JOB_STATE_FG);
-
-    printf("[%d] %d", job_id, pgid);
-
-    kill(-pgid, SIGCONT);
-
-    return await_in_fg(s, job_id, pgid, cmd_cnt);
-}
-
-int builtin_bg(Shell *s, Command *cmd) {
-    int job_id = -1;
-    if (cmd->argc == 1) {
-        // TODO: resume most recent job instead of first job id
-        for (int i = 0; i < MAX_JOBS; i++) {
-            int curr_state = s->job_table[i].state;
-            if (curr_state == JOB_STATE_STOPPED) {
-                job_id = i;
-                break;
-            }
-            if (job_id < 0) {
-                fprintf(stderr, "bg: no current jobs\n");
-                return 1;
-            }
-        }
-    } else {
-        job_id = strtol(cmd->argv[1], NULL, 10);
-    }
-
-    if (!is_job_id_valid(s, job_id)) {
-        fprintf(stderr, "bg: invalid job number\n");
-        return 1;
-    }
-    if (s->job_table[job_id].state == JOB_STATE_BG) {
-        fprintf(stderr, "bg: job %d already in background\n", job_id);
-        return 1;
-    }
-
-    int pgid = s->job_table[job_id].pgid;
-    job_table_update_state(s, job_id, JOB_STATE_BG);
-
-    printf("[%d] %d", job_id, pgid);
-
-    kill(-pgid, SIGCONT);
-
-    return 0;
-}
-
-int builtin_jobs(Shell *s) {
-    job_table_print(s);
-    return 0;
-}
-
-int run_builtin(Shell *s, BuiltinKind b, Command *cmd) {
-    if (b == NOT_A_BUILTIN)
-        return -1;
-
-    SavedFDs saved_fds;
-    if (save_fds(&saved_fds) < 0) {
-        return -1;
-    }
-    if (redirect_io(cmd) < 0) {
-        restore_fds(&saved_fds);
-        return -1;
-    }
-
-    int status = 0;
-
-    switch (b) {
-    case BUILTIN_EXIT:
-        s->running = false;
-        return s->last_status;
-    case BUILTIN_CD:
-        status = builtin_cd(s, cmd);
-        break;
-    case BUILTIN_FG:
-        status = builtin_fg(s, cmd);
-        break;
-    case BUILTIN_BG:
-        status = builtin_bg(s, cmd);
-        break;
-    case BUILTIN_JOBS:
-        status = builtin_jobs(s);
-        break;
-    case NOT_A_BUILTIN:
-        // unreachable
-        return -1;
-    }
-
-    if (status != 0) {
-        restore_fds(&saved_fds);
-        return status;
-    }
-
-    if (restore_fds(&saved_fds) < 0) {
-        return -1;
-    }
-
-    return 0;
-}
 
 int run_command(Command *cmd, Job *job, bool is_last) {
     if (!cmd || !cmd->argc || !job) return -1;
@@ -323,7 +160,7 @@ int run_job(Shell *s, Job *job) {
         }
 
         if (!job->run_in_bg) {
-            job_status = await_in_fg(s, job_id, job->pgid, cmds_remaining);
+            job_status = await_job(s, job_id, job->pgid, cmds_remaining);
         } else {
             printf("[%d] %d\n", job_id, job->pgid);
         }

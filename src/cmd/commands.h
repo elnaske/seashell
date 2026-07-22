@@ -8,15 +8,6 @@
 typedef struct Shell Shell;
 
 typedef enum {
-    NOT_A_BUILTIN,
-    BUILTIN_EXIT,
-    BUILTIN_CD,
-    BUILTIN_FG,
-    BUILTIN_BG,
-    BUILTIN_JOBS,
-} BuiltinKind;
-
-typedef enum {
     EXEC_OK,
     EXEC_ERR,
 } ExecStatus;
@@ -40,3 +31,5 @@ typedef struct Job {
 void free_job(Job *job);
 
 int run_job(Shell *s, Job *job);
+
+int await_job(Shell *s, int job_id, pid_t pgid, size_t cmd_cnt);
