@@ -35,8 +35,11 @@ void reap_children(Shell *s) {
     int status;
 
     while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
-        fprintf(stderr, "Reaped process %d\n", pid);
-        job_table_mark_finished(s, pid);
+        int job_id = job_table_find_job_id(s, pid);
+        if (is_job_id_valid(s, job_id)) {
+            fprintf(stderr, "[%d] Done\n", job_id);
+            job_table_update_state(s, job_id, JOB_STATE_DONE);
+        }
     }
 
     if (errno && errno != ECHILD) {

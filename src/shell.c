@@ -49,9 +49,9 @@ char *get_job_state_str(JobState js) {
     case JOB_STATE_FREE:
         return "Free";
     case JOB_STATE_FG:
-        return "Running (fg)";
+        return "Running";
     case JOB_STATE_BG:
-        return "Running (bg)";
+        return "Running";
     case JOB_STATE_STOPPED:
         return "Stopped";
     case JOB_STATE_DONE:
@@ -90,18 +90,6 @@ bool job_table_is_full(Shell *s) {
     return true;
 }
 
-// int job_table_update_state(Shell *s, int job_id, int status) {
-//     if (!is_job_id_valid(s, job_id)) return -1;
-
-//     if (WIFSIGNALED(status) && (WTERMSIG(status) == SIGTSTP || WTERMSIG(status) == SIGSTOP)) {
-//         // TODO: fix this
-//         s->job_table[job_id].state = JOB_STATE_STOPPED;
-//     } else {
-//         s->job_table[job_id].state = JOB_STATE_DONE;
-//     }
-
-//     return 0;
-// }
 int job_table_update_state(Shell *s, int job_id, int state) {
     if (!is_job_id_valid(s, job_id)) return -1;
     s->job_table[job_id].state = state;
@@ -168,6 +156,11 @@ int shell_run(Shell *s) {
         if (status != PARSE_OK) {
             print_syntax_error(status);
             set_last_status(s, status);
+            free(line);
+            continue;
+        }
+        if (job.cmd_cnt == 0){
+            set_last_status(s, 0);
             free(line);
             continue;
         }

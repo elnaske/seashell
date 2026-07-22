@@ -12,6 +12,7 @@ typedef enum {
     BUILTIN_EXIT,
     BUILTIN_CD,
     BUILTIN_FG,
+    BUILTIN_BG,
     BUILTIN_JOBS,
 } BuiltinKind;
 

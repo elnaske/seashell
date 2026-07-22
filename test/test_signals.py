@@ -82,4 +82,4 @@ def test_bg_exec():
 
     _, stderr = p.communicate("exit\n", timeout=2)
 
-    assert "Reaped" in stderr
+    assert "[0] Done" in stderr
