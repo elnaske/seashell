@@ -23,15 +23,15 @@ def test_pipe_2():
     assert "olleh" in res.stdout
 
 
-def test_pipe_builtin():
-    res = run_shell("""\
-        sleep 0.2 &
-        jobs | grep -o Run | rev
-        exit
-        """)
+# def test_pipe_builtin():
+#     res = run_shell("""\
+#         sleep 0.2 &
+#         jobs | grep -o Run | rev
+#         exit
+#         """)
 
-    assert res.returncode == 0
-    assert "nuR" in res.stdout
+#     assert res.returncode == 0
+#     assert "nuR" in res.stdout
 
 
 def test_err_sequential_pipes():

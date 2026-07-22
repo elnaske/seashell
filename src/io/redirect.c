@@ -5,9 +5,9 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "commands.h"
-#include "parse.h"
-#include "syscall_wrappers.h"
+#include "../cmd/commands.h"
+#include "../parser/parse.h"
+#include "../sys/syscall_wrappers.h"
 
 int match_redirection(char *token) {
     if (strcmp(token, "<") == 0)

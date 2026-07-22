@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "shell.h"
+#include "../shell.h"
 #include "syscall_wrappers.h"
 
 extern Shell shell;

@@ -1,0 +1,12 @@
+*
+!.gitignore
+
+!src/
+!src/**/
+!src/**/*{.c, .h}
+
+!test/
+!test/*.py
+
+!Makefile
+!README.md

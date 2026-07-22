@@ -7,10 +7,10 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "commands.h"
-#include "options.h"
-#include "redirect.h"
-#include "shell.h"
+#include "../cmd/commands.h"
+#include "../io/redirect.h"
+#include "../options.h"
+#include "../shell.h"
 
 void print_syntax_error(int status) {
     char *err;

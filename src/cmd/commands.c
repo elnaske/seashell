@@ -9,10 +9,10 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#include "parse.h"
-#include "redirect.h"
-#include "shell.h"
-#include "syscall_wrappers.h"
+#include "../io/redirect.h"
+#include "../parser/parse.h"
+#include "../sys/syscall_wrappers.h"
+#include "../shell.h"
 
 void free_job(Job *job) {
     if (!job) return;

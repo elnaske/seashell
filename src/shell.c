@@ -7,11 +7,11 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "commands.h"
-#include "parse.h"
-#include "redirect.h"
-#include "sighandlers.h"
-#include "syscall_wrappers.h"
+#include "cmd/commands.h"
+#include "io/redirect.h"
+#include "parser/parse.h"
+#include "sys/sighandlers.h"
+#include "sys/syscall_wrappers.h"
 
 #define COL_GREEN "\033[32m"
 #define COL_BLUE "\033[34m"
@@ -159,7 +159,7 @@ int shell_run(Shell *s) {
             free(line);
             continue;
         }
-        if (job.cmd_cnt == 0){
+        if (job.cmd_cnt == 0) {
             set_last_status(s, 0);
             free(line);
             continue;

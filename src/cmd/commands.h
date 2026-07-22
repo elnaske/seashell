@@ -1,6 +1,6 @@
 #pragma once
-#include "options.h"
-#include "redirect.h"
+#include "../options.h"
+#include "../io/redirect.h"
 #include <stdbool.h>
 #include <stddef.h>
 #include <wait.h>
