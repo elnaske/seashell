@@ -9,16 +9,16 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#include "../io/redirect.h"
-#include "../parser/parse.h"
-#include "../sys/syscall_wrappers.h"
 #include "../core/shell.h"
+#include "../parser/parse.h"
+#include "../sys/redirect.h"
+#include "../sys/syscall_wrappers.h"
 
 #include "builtins.h"
 
 void free_pipeline(Pipeline *pl) {
     if (!pl) return;
-    free(pl->cmds[0].argv); // arena allocation, so we only free the first cmd 
+    free(pl->cmds[0].argv); // arena allocation, so we only free the first cmd
     pl->cmds[0].argv = NULL;
     pl->cmd_cnt = 0;
 }
@@ -66,7 +66,6 @@ int await_job(Shell *s, int job_id, pid_t pgid, size_t cmd_cnt) {
     return job_status;
 }
 
-
 int run_command(Command *cmd, Pipeline *pl, bool is_last) {
     if (!cmd || !cmd->argc || !pl) return -1;
 
@@ -80,6 +79,9 @@ int run_command(Command *cmd, Pipeline *pl, bool is_last) {
         return -1;
     }
 
+    int pipe_write = pipefd[0];
+    int pipe_read = pipefd[1];
+
     pid_t pid = Fork();
     if (pid < 0) {
         return -1;
@@ -88,10 +90,10 @@ int run_command(Command *cmd, Pipeline *pl, bool is_last) {
     if (pid == 0) {
         Setpgid(0, pl->pgid); // pgid = 0 for first command
 
-        if (setup_pipe(prev_pipe, pipefd) < 0) {
+        if (apply_pipe(prev_pipe, pipe_read, pipe_write) < 0) {
             exit(1);
         }
-        if (redirect_io(cmd) < 0) {
+        if (apply_redirections(cmd) < 0) {
             exit(1);
         }
 
@@ -104,7 +106,10 @@ int run_command(Command *cmd, Pipeline *pl, bool is_last) {
 
     Setpgid(pid, pl->pgid);
 
-    if (close_pipe_read_end(&prev_pipe, pipefd) < 0) {
+    // if (update_pipe_read_end(&prev_pipe, pipefd) < 0) {
+    //     return -1;
+    // }
+    if (update_pipe_read_end(&prev_pipe, pipe_read, pipe_write) < 0) {
         return -1;
     }
 

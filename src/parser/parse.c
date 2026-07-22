@@ -1,6 +1,5 @@
 #include "parse.h"
 
-#include <ctype.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,35 +7,10 @@
 #include <unistd.h>
 
 #include "../cmd/commands.h"
-#include "../io/redirect.h"
-#include "../options.h"
 #include "../core/shell.h"
-
-void print_syntax_error(int status) {
-    char *err;
-
-    switch (status) {
-    case PARSE_ERR_MALLOC:
-        err = "memory allocation failure";
-        break;
-    case PARSE_ERR_FILENAME:
-        err = "missing filename";
-        break;
-    case PARSE_ERR_LEADING_PIPE:
-        err = "leading pipe";
-        break;
-    case PARSE_ERR_DANGLING_PIPE:
-        err = "dangling pipe";
-        break;
-    case PARSE_ERR_AMPERSAND:
-        err = "non-final '&'";
-        break;
-    default:
-        return;
-    }
-
-    fprintf(stderr, "Syntax error: %s\n", err);
-}
+#include "../options.h"
+#include "../sys/redirect.h"
+#include "tokenize.h"
 
 static inline bool is_operator(char *s) {
     return strcmp(s, "<") == 0 || strcmp(s, ">") == 0 || strcmp(s, ">>") == 0 || strcmp(s, "2>") == 0 || strcmp(s, "2>>") == 0 || strcmp(s, "&>") == 0 || strcmp(s, "&>>") == 0;
@@ -46,50 +20,18 @@ static inline bool is_redirection(RedirKind r) {
     return r != REDIR_NONE;
 }
 
-static inline bool is_var(char **next_token) {
-    return (*next_token)[0] == '$' && (*next_token)[1] != '\0';
+static inline bool is_var(char *s) {
+    return s[0] == '$' && s[1] != '\0';
 }
 
-char **tokenize_line(char *line, size_t len, size_t *cnt_out) {
-    if (!line) return NULL;
-
-    char **tokens = malloc(sizeof(char *) * (MAX_ARGS + 1)); // terminated by NULL ptr
-    if (!tokens) return NULL;
-
-    size_t token_cnt = 0;
-
-    size_t idx = 0;
-    while (idx < len && line[idx] != '\0') {
-        while (idx < len && isspace(line[idx])) {
-            idx++;
-        }
-
-        if (line[idx] == '\0') {
-            break;
-        }
-
-        size_t start = idx;
-
-        while (line[idx] != '\0' && !isspace(line[idx])) {
-            idx++;
-        }
-
-        line[idx++] = '\0';
-        tokens[token_cnt++] = line + start;
-
-        if (token_cnt >= MAX_ARGS) {
-            fprintf(stderr, "Warning: Max number of arguments exceeded; ignoring all after '%s'\n", tokens[token_cnt - 1]);
-            break;
-        }
+void add_redirection(Command *cmd, char *file, int fd, int o_flag) {
+    if (cmd->n_redirects >= MAX_REDIRECTS) {
+        fprintf(stderr, "Shell warning: Max number of redirects exceeded; ignoring all after '%s'\n", cmd->redirects[cmd->n_redirects - 1].file);
+        return;
     }
 
-    if (cnt_out) {
-        *cnt_out = token_cnt;
-    }
-
-    tokens[token_cnt] = NULL;
-
-    return tokens;
+    Redirect redir = {.file = file, .fd = fd, .o_flag = o_flag};
+    cmd->redirects[cmd->n_redirects++] = redir;
 }
 
 int parse_redirection(RedirKind r, char **next_token, Command *cmd) {
@@ -97,33 +39,50 @@ int parse_redirection(RedirKind r, char **next_token, Command *cmd) {
         return PARSE_ERR_FILENAME;
     }
 
+    int fd[2] = {-1, -1};
+    int o_flag;
+
     switch (r) {
     case REDIR_STDIN:
-        add_redirection(cmd, next_token, STDIN_FILENO, O_RDONLY);
+        fd[0] = STDIN_FILENO;
+        o_flag = O_RDONLY;
         break;
     case REDIR_STDOUT:
-        add_redirection(cmd, next_token, STDOUT_FILENO, O_WRONLY | O_CREAT);
+        fd[0] = STDOUT_FILENO;
+        o_flag = O_WRONLY | O_CREAT;
         break;
     case REDIR_STDOUT_APPEND:
-        add_redirection(cmd, next_token, STDOUT_FILENO, O_WRONLY | O_CREAT | O_APPEND);
+        fd[0] = STDOUT_FILENO;
+        o_flag = O_WRONLY | O_CREAT | O_APPEND;
         break;
     case REDIR_STDERR:
-        add_redirection(cmd, next_token, STDERR_FILENO, O_WRONLY | O_CREAT);
+        fd[0] = STDERR_FILENO;
+        o_flag = O_WRONLY | O_CREAT;
         break;
     case REDIR_STDERR_APPEND:
-        add_redirection(cmd, next_token, STDERR_FILENO, O_WRONLY | O_CREAT | O_APPEND);
+        fd[0] = STDERR_FILENO;
+        o_flag = O_WRONLY | O_CREAT | O_APPEND;
         break;
     case REDIR_BOTH:
-        add_redirection(cmd, next_token, STDOUT_FILENO, O_WRONLY | O_CREAT);
-        add_redirection(cmd, next_token, STDERR_FILENO, O_WRONLY | O_CREAT);
+        fd[0] = STDOUT_FILENO;
+        fd[1] = STDERR_FILENO;
+        o_flag = O_WRONLY | O_CREAT;
         break;
     case REDIR_BOTH_APPEND:
-        add_redirection(cmd, next_token, STDOUT_FILENO, O_WRONLY | O_CREAT | O_APPEND);
-        add_redirection(cmd, next_token, STDERR_FILENO, O_WRONLY | O_CREAT | O_APPEND);
+        fd[0] = STDOUT_FILENO;
+        fd[1] = STDERR_FILENO;
+        o_flag = O_WRONLY | O_CREAT | O_APPEND;
         break;
     default:
         break;
     }
+
+    add_redirection(cmd, *next_token, fd[0], o_flag);
+
+    if (fd[1] >= 0) {
+        add_redirection(cmd, *next_token, fd[1], o_flag);
+    }
+
     return PARSE_OK;
 }
 
@@ -144,7 +103,7 @@ char *expand_var(char **next_token, char *exit_code_start) {
 }
 
 int parse_command(char ***p_next_token, char **argv_start, char *exit_code_start, Command *cmd_out) {
-    if (!cmd_out) return -1;
+    if (!p_next_token || !argv_start || !exit_code_start || !cmd_out) return -1;
 
     Command cmd = {0};
     cmd.argv = argv_start;
@@ -180,7 +139,7 @@ int parse_command(char ***p_next_token, char **argv_start, char *exit_code_start
             if (status != PARSE_OK) {
                 return status;
             }
-        } else if (is_var(next_token)) {
+        } else if (is_var(*next_token)) {
             cmd.argv[cmd.argc++] = expand_var(next_token, exit_code_start);
         } else {
             cmd.argv[cmd.argc++] = *next_token;
@@ -201,7 +160,7 @@ int parse_command(char ***p_next_token, char **argv_start, char *exit_code_start
 }
 
 int parse_line(Shell *s, char *line, size_t len, Pipeline *pl_out) {
-    if (!pl_out) return -1;
+    if (!s || !line || !pl_out) return -1;
 
     size_t token_cnt;
     char **tokens = tokenize_line(line, len, &token_cnt);
@@ -228,11 +187,11 @@ int parse_line(Shell *s, char *line, size_t len, Pipeline *pl_out) {
 
         char **argv_start = arg_arena;
         char *exit_code_start = (char *)arg_arena + max_argv_len;
-
         snprintf(exit_code_start, exit_code_str_len, "%d", s->last_status);
 
         Pipeline pl = {0};
         pl.prev_pipe = -1;
+
         pl.run_in_bg = *(tokens[token_cnt - 1]) == '&';
         if (pl.run_in_bg) {
             tokens[--token_cnt] = NULL;
@@ -259,4 +218,30 @@ int parse_line(Shell *s, char *line, size_t len, Pipeline *pl_out) {
 
     free(tokens);
     return PARSE_OK;
+}
+
+void print_syntax_error(int status) {
+    char *err;
+
+    switch (status) {
+    case PARSE_ERR_MALLOC:
+        err = "memory allocation failure";
+        break;
+    case PARSE_ERR_FILENAME:
+        err = "missing filename";
+        break;
+    case PARSE_ERR_LEADING_PIPE:
+        err = "leading pipe";
+        break;
+    case PARSE_ERR_DANGLING_PIPE:
+        err = "dangling pipe";
+        break;
+    case PARSE_ERR_AMPERSAND:
+        err = "non-final '&'";
+        break;
+    default:
+        return;
+    }
+
+    fprintf(stderr, "Syntax error: %s\n", err);
 }

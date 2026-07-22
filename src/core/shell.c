@@ -8,8 +8,8 @@
 #include <unistd.h>
 
 #include "../cmd/commands.h"
-#include "../io/redirect.h"
 #include "../parser/parse.h"
+#include "../sys/redirect.h"
 #include "../sys/sighandlers.h"
 #include "../sys/syscall_wrappers.h"
 #include "jobs.h"

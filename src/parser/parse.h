@@ -13,6 +13,6 @@ typedef enum {
     PARSE_ERR_AMPERSAND,
 } ParseStatus;
 
-void print_syntax_error(int status);
-
 int parse_line(Shell *s, char *line, size_t len, Pipeline *pl_out);
+
+void print_syntax_error(int status);

@@ -62,7 +62,7 @@ int run_builtin(Shell *s, BuiltinKind b, Command *cmd) {
     if (save_fds(&saved_fds) < 0) {
         return -1;
     }
-    if (redirect_io(cmd) < 0) {
+    if (apply_redirections(cmd) < 0) {
         restore_fds(&saved_fds);
         return -1;
     }

@@ -28,15 +28,6 @@ int match_redirection(char *token) {
     return REDIR_NONE;
 }
 
-void add_redirection(Command *cmd, char **next_token, int fd, int o_flag) {
-    if (cmd->n_redirects >= MAX_REDIRECTS) {
-        fprintf(stderr, "Warning: Max number of redirects exceeded; ignoring all after '%s'\n", cmd->redirects[cmd->n_redirects - 1].file);
-    }
-
-    Redirect redir = {.file = *next_token, .fd = fd, .o_flag = o_flag};
-    cmd->redirects[cmd->n_redirects++] = redir;
-}
-
 int save_fds(SavedFDs *fd_out) {
     SavedFDs saved_fds;
 
@@ -80,52 +71,7 @@ int restore_fds(SavedFDs *saved) {
     return return_val;
 }
 
-int setup_pipe(int prev_pipe, int pipefd[2]) {
-    if (prev_pipe > -1 && Dup2(prev_pipe, STDIN_FILENO) < 0) {
-        Close(prev_pipe);
-        return -1;
-    }
-
-    if (pipefd[1] > -1 && Dup2(pipefd[1], STDOUT_FILENO) < 0) {
-        Close(pipefd[1]);
-        return -1;
-    }
-
-    if (prev_pipe > -1 && Close(prev_pipe) < 0) {
-        return -1;
-    }
-    if (pipefd[0] > -1) {
-        int status = 0;
-        status = Close(pipefd[0]);
-        status = Close(pipefd[1]);
-        if (status < 0) {
-            return -1;
-        }
-    }
-
-    return 0;
-}
-
-int close_pipe_read_end(int *prev_pipe, int pipefd[2]) {
-    if (!prev_pipe) return -1;
-
-    if (*prev_pipe > -1 && Close(*prev_pipe) < 0) {
-        return -1;
-    }
-
-    if (pipefd[1] > -1) {
-        if (Close(pipefd[1]) < 0) {
-            return -1;
-        }
-        *prev_pipe = pipefd[0];
-    } else {
-        *prev_pipe = -1;
-    }
-
-    return 0;
-}
-
-int redirect_io(Command *cmd) {
+int apply_redirections(Command *cmd) {
     for (size_t i = 0; i < cmd->n_redirects; i++) {
         Redirect redir = cmd->redirects[i];
 
@@ -142,6 +88,51 @@ int redirect_io(Command *cmd) {
         if (Close(fd) < 0) {
             return -1;
         }
+    }
+
+    return 0;
+}
+
+int apply_pipe(int prev_pipe, int read_fd, int write_fd) {
+    if (prev_pipe > -1 && Dup2(prev_pipe, STDIN_FILENO) < 0) {
+        Close(prev_pipe);
+        return -1;
+    }
+
+    if (read_fd > -1 && Dup2(read_fd, STDOUT_FILENO) < 0) {
+        Close(read_fd);
+        return -1;
+    }
+
+    if (prev_pipe > -1 && Close(prev_pipe) < 0) {
+        return -1;
+    }
+    if (write_fd > -1) {
+        int status = 0;
+        status = Close(write_fd);
+        status = Close(read_fd);
+        if (status < 0) {
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+int update_pipe_read_end(int *prev_pipe, int read_fd, int write_fd) {
+    if (!prev_pipe) return -1;
+
+    if (*prev_pipe > -1 && Close(*prev_pipe) < 0) {
+        return -1;
+    }
+
+    if (read_fd > -1) {
+        if (Close(read_fd) < 0) {
+            return -1;
+        }
+        *prev_pipe = write_fd;
+    } else {
+        *prev_pipe = -1;
     }
 
     return 0;
