@@ -1,16 +1,9 @@
 #pragma once
-#include "../options.h"
-#include "../sys/redirect.h"
 #include <stdbool.h>
 #include <stddef.h>
-#include <wait.h>
 
-typedef struct Shell Shell;
-
-typedef enum {
-    EXEC_OK,
-    EXEC_ERR,
-} ExecStatus;
+#include "../options.h"
+#include "../sys/redirect.h"
 
 typedef struct Command {
     char **argv;
@@ -19,18 +12,6 @@ typedef struct Command {
     size_t n_redirects;
 } Command;
 
-typedef struct Pipeline {
-    Command cmds[MAX_CMDS_PER_JOB];
-    size_t cmd_cnt;
-    char *cmd_line;
-    pid_t pgid;
-    pid_t last_pid;
-    int prev_pipe;
-    bool run_in_bg;
-} Pipeline;
+void cmd_add_redirection(Command *cmd, char *file, int fd, int o_flag);
 
-void free_pipeline(Pipeline *pl);
-
-int run_pipeline(Shell *s, Pipeline *pl);
-
-int await_job(Shell *s, int job_id, pid_t pgid, size_t cmd_cnt);
+int run_command(Command *cmd, Pipeline *pl, bool is_last);

@@ -8,6 +8,7 @@
 
 #include "../core/shell.h"
 #include "../sys/syscall_wrappers.h"
+#include "pipeline.h"
 #include "commands.h"
 
 inline bool is_builtin(BuiltinKind b) {

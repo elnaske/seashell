@@ -6,6 +6,7 @@
 #include <unistd.h>
 
 #include "../cmd/commands.h"
+#include "../cmd/pipeline.h"
 #include "../parser/parse.h"
 #include "../sys/syscall_wrappers.h"
 

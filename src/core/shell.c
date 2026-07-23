@@ -7,16 +7,21 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "../cmd/commands.h"
+#include "../cmd/pipeline.h"
 #include "../parser/parse.h"
 #include "../sys/redirect.h"
 #include "../sys/sighandlers.h"
 #include "../sys/syscall_wrappers.h"
+#include "../options.h"
 #include "jobs.h"
 
-#define COL_GREEN "\033[32m"
-#define COL_BLUE "\033[34m"
-#define COL_CLR "\033[0m"
+#ifdef COLORED_PROMPT
+    #define COL_CLR "\033[0m"
+#else
+    #define PROMPT_COL_1 ""
+    #define PROMPT_COL_2 ""
+    #define COL_CLR ""
+#endif
 
 extern volatile sig_atomic_t sigchld_received;
 
@@ -53,7 +58,7 @@ static inline void set_last_status(Shell *s, int status) {
 
 int shell_run(Shell *s) {
     while (s->running) {
-        printf(COL_GREEN "seashell" COL_CLR ":" COL_BLUE "%s" COL_CLR "$ ", s->cwd);
+        printf(PROMPT_COL_1 "seashell" COL_CLR ":" PROMPT_COL_2 "%s" COL_CLR "$ ", s->cwd);
 
         char *line = NULL;
         size_t len = 0;

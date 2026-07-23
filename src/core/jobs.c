@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../cmd/commands.h"
+#include "../cmd/pipeline.h"
 #include "../options.h"
 #include "shell.h"
 

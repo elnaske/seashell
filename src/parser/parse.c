@@ -7,6 +7,7 @@
 #include <unistd.h>
 
 #include "../cmd/commands.h"
+#include "../cmd/pipeline.h"
 #include "../core/shell.h"
 #include "../options.h"
 #include "../sys/redirect.h"
@@ -22,16 +23,6 @@ static inline bool is_redirection(RedirKind r) {
 
 static inline bool is_var(char *s) {
     return s[0] == '$' && s[1] != '\0';
-}
-
-void add_redirection(Command *cmd, char *file, int fd, int o_flag) {
-    if (cmd->n_redirects >= MAX_REDIRECTS) {
-        fprintf(stderr, "Shell warning: Max number of redirects exceeded; ignoring all after '%s'\n", cmd->redirects[cmd->n_redirects - 1].file);
-        return;
-    }
-
-    Redirect redir = {.file = file, .fd = fd, .o_flag = o_flag};
-    cmd->redirects[cmd->n_redirects++] = redir;
 }
 
 int parse_redirection(RedirKind r, char **next_token, Command *cmd) {
@@ -77,10 +68,10 @@ int parse_redirection(RedirKind r, char **next_token, Command *cmd) {
         break;
     }
 
-    add_redirection(cmd, *next_token, fd[0], o_flag);
+    cmd_add_redirection(cmd, *next_token, fd[0], o_flag);
 
     if (fd[1] >= 0) {
-        add_redirection(cmd, *next_token, fd[1], o_flag);
+        cmd_add_redirection(cmd, *next_token, fd[1], o_flag);
     }
 
     return PARSE_OK;
@@ -159,6 +150,7 @@ int parse_command(char ***p_next_token, char **argv_start, char *exit_code_start
     return PARSE_OK;
 }
 
+
 int parse_line(Shell *s, char *line, size_t len, Pipeline *pl_out) {
     if (!s || !line || !pl_out) return -1;
 
@@ -169,47 +161,15 @@ int parse_line(Shell *s, char *line, size_t len, Pipeline *pl_out) {
     }
 
     if (token_cnt) {
-        size_t max_argv_len = sizeof(tokens) * (token_cnt + 1);
-        size_t exit_code_str_len = sizeof(char) * 4; // three digits (8-bits) + null terminator
-        size_t max_stripped_line_len = sizeof(char) * len;  // for printing the job later (len already includes null terminator)
-
-        /*
-         * Arena allocation that holds args (pointers into line), a NULL separator, and the previous exit code (last 4 bytes; for expanding $?)
-         * i.e.
-         * arg_arena: [[argv pointers], NULL, [padding], exit code (str), stripped command line (str)]
-         *             |  |   |
-         * line:      [..0...0.....0]
-         */
-        void *arg_arena = malloc(max_argv_len + exit_code_str_len + max_stripped_line_len);
-        if (!arg_arena) {
+        ArgArena mem_arena;
+        if (init_arg_arena(&mem_arena, tokens, token_cnt, len, s->last_status) < 0) {
             free(tokens);
             return PARSE_ERR_MALLOC;
         }
 
-        char **argv_start = arg_arena;
-        char *exit_code_start = (char *)arg_arena + max_argv_len;
-        snprintf(exit_code_start, exit_code_str_len, "%d", s->last_status);
-        
-        char *cmd_line_start = exit_code_start + exit_code_str_len;
-
-        char *next_token_start = cmd_line_start;
-        for (size_t i = 0; i < token_cnt; i++) {
-            size_t token_len = strlen(tokens[i]);
-            memcpy(next_token_start, tokens[i], token_len);
-
-            if (i + 1 < token_cnt) {
-                next_token_start[token_len] = ' ';
-            } else {
-                next_token_start[token_len] = '\0';
-            }
-
-            next_token_start += token_len + 1;
-        }
-
-
         Pipeline pl = {0};
         pl.prev_pipe = -1;
-        pl.cmd_line = cmd_line_start;
+        pl.cmd_line = mem_arena.cmd_line;
 
         pl.run_in_bg = *(tokens[token_cnt - 1]) == '&';
         if (pl.run_in_bg) {
@@ -217,13 +177,14 @@ int parse_line(Shell *s, char *line, size_t len, Pipeline *pl_out) {
         }
 
         char **next_token = tokens;
+        char **argv_start = mem_arena.args;
         while (*next_token) {
             Command cmd = {0};
 
-            int status = parse_command(&next_token, argv_start, exit_code_start, &cmd);
+            int status = parse_command(&next_token, argv_start, mem_arena.last_status, &cmd);
             if (status != PARSE_OK) {
                 free(tokens);
-                free(arg_arena);
+                free_pipeline(&pl);
                 return status;
             }
 
