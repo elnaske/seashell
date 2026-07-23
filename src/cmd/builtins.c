@@ -15,6 +15,10 @@ inline bool is_builtin(BuiltinKind b) {
     return b != NOT_A_BUILTIN;
 }
 
+inline bool can_run_in_bg(BuiltinKind b) {
+    return b != BUILTIN_FG && b != BUILTIN_BG && b != BUILTIN_EXIT;
+}
+
 int match_builtin(Command *cmd) {
     char *arg = cmd->argv[0];
 
@@ -101,7 +105,7 @@ int builtin_cd(Shell *s, Command *cmd) {
     return 0;
 }
 
-int convert_to_integer(char *s, int *int_out) {
+static int convert_to_integer(char *s, int *int_out) {
     if (!int_out) return -1;
 
     char *end;
@@ -123,7 +127,7 @@ static int resume_first_fit(Shell *s, bool run_in_bg) {
             return i;
         }
     }
-    return 0;
+    return -1;
 }
 
 int builtin_fg_bg(Shell *s, Command *cmd, bool run_in_bg) {

@@ -48,55 +48,40 @@ int await_job(Shell *s, int job_id, pid_t pgid, size_t cmd_cnt) {
 
 int run_pipeline(Shell *s, Pipeline *pl) {
     if (!pl) return -1;
+    if (pl->cmd_cnt == 0) return 0;
 
-    size_t cmds_remaining = pl->cmd_cnt;
+    BuiltinKind b = match_builtin(&(pl->cmds[0]));
+    if (pl->cmd_cnt == 1 && is_builtin(b) && !pl->run_in_bg) {
+        return run_builtin(s, b, &(pl->cmds[0]));
+    }
+
+    if (jt_is_full(s)) {
+        fprintf(stderr, "Shell error: max number of jobs reached\n");
+        return -1;
+    }
 
     for (size_t i = 0; i < pl->cmd_cnt; i++) {
         Command cmd = pl->cmds[i];
-        bool is_last_cmd = (i + 1 >= pl->cmd_cnt);
-        int exec_status;
 
-        BuiltinKind b = match_builtin(&cmd);
-        if (is_builtin(b)) {
-            if (pl->run_in_bg) {
-                // disallowing for all builtins for now, liable to change if more are added
-                fprintf(stderr, "%s: no job control\n", cmd.argv[0]);
-                return -1;
-            }
-
-            cmds_remaining--;
-            if ((exec_status = run_builtin(s, b, &cmd)) != 0) {
-                return exec_status;
-            }
-        } else {
-            if (jt_is_full(s)) {
-                fprintf(stderr, "Shell error: max number of jobs reached\n");
-                return -1;
-            }
-
-            if ((exec_status = run_command(&cmd, pl, is_last_cmd)) != 0) {
-                return exec_status;
-            }
-        }
-
-        if (!s->running) {
-            return 0;
-        }
-    }
-
-    int job_status = 0;
-
-    if (cmds_remaining) {
-        int job_id = jt_add_entry(s, pl);
-        if (!job_id_is_valid(s, job_id)) {
+        if (!can_run_in_bg(match_builtin(&cmd))) {
+            fprintf(stderr, "%s: no job control\n", pl->cmds[0].argv[0]);
             return -1;
         }
 
-        if (!pl->run_in_bg) {
-            job_status = await_job(s, job_id, pl->pgid, cmds_remaining);
-        } else {
-            printf("[%d] %d\n", job_id, pl->pgid);
+        bool is_last_cmd = (i + 1 >= pl->cmd_cnt);
+        int cmd_status = run_command(s, &cmd, pl, is_last_cmd);
+        if (cmd_status != 0) {
+            return cmd_status;
         }
+    }
+
+    int job_id = jt_add_entry(s, pl);
+
+    int job_status = 0;
+    if (!pl->run_in_bg) {
+        job_status = await_job(s, job_id, pl->pgid, pl->cmd_cnt);
+    } else {
+        printf("[%d] %d\n", job_id, pl->pgid);
     }
 
     return job_status;

@@ -5,8 +5,10 @@
 #include <stdlib.h>
 #include <wait.h>
 
-#include "../sys/syscall_wrappers.h"
+#include "../core/shell.h"
 #include "../options.h"
+#include "../sys/syscall_wrappers.h"
+#include "builtins.h"
 #include "pipeline.h"
 
 void cmd_add_redirection(Command *cmd, char *file, int fd, int o_flag) {
@@ -19,7 +21,7 @@ void cmd_add_redirection(Command *cmd, char *file, int fd, int o_flag) {
     cmd->redirects[cmd->n_redirects++] = redir;
 }
 
-int run_command(Command *cmd, Pipeline *pl, bool is_last) {
+int run_command(Shell *s, Command *cmd, Pipeline *pl, bool is_last) {
     if (!cmd || !cmd->argc || !pl) return -1;
 
     int pipefd[2] = {-1, -1};
@@ -48,7 +50,14 @@ int run_command(Command *cmd, Pipeline *pl, bool is_last) {
             exit(1);
         }
 
-        Execvp(cmd->argv[0], cmd->argv);
+        BuiltinKind b = match_builtin(cmd);
+        if (is_builtin(b)) {
+            int status = run_builtin(s, b, &cmd);
+            exit(status);
+
+        } else {
+            Execvp(cmd->argv[0], cmd->argv);
+        }
     }
 
     if (pl->pgid == 0) {

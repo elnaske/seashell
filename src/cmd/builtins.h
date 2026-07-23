@@ -16,6 +16,8 @@ typedef enum {
 
 bool is_builtin(BuiltinKind b);
 
+bool can_run_in_bg(BuiltinKind b);
+
 int match_builtin(Command *cmd);
 
 int run_builtin(Shell *s, BuiltinKind b, Command *cmd);

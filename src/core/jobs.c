@@ -136,14 +136,16 @@ int jt_update(Shell *s, int job_id, int cmd_status, bool ran_in_bg) {
         job_status = 128 + WTERMSIG(cmd_status);
     } else if (WIFSTOPPED(cmd_status)) {
         jt_update_job_state(s, job_id, JOB_STATE_STOPPED);
+
         fprintf(stderr, "\n");
         log_job(s, job_id, "Stopped");
         job_status = 128 + WSTOPSIG(cmd_status);
     } else {
+        jt_update_job_state(s, job_id, JOB_STATE_DONE);
+
         if (ran_in_bg) {
             log_job(s, job_id, "Done");
         }
-        jt_update_job_state(s, job_id, JOB_STATE_DONE);
         job_status = WEXITSTATUS(cmd_status);
     }
 
