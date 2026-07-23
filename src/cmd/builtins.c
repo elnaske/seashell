@@ -116,21 +116,26 @@ int convert_to_integer(char *s, int *int_out) {
 }
 
 int builtin_fg_bg(Shell *s, Command *cmd, bool run_in_bg) {
+    if (cmd->argc > 2) {
+        fprintf(stderr, "%s: too many arguments\n", cmd->argv[0]);
+    }
+
     int new_state = run_in_bg ? JOB_STATE_BG : JOB_STATE_FG;
 
     int job_id = -1;
     if (cmd->argc == 1) {
         // TODO: resume most recent job instead of first job id
         for (int i = 0; i < MAX_JOBS; i++) {
-            int curr_state = s->jt[i].state;
+            int curr_state = s->jt.jobs[i].state;
             if (curr_state == JOB_STATE_STOPPED || (!run_in_bg && curr_state == JOB_STATE_BG)) {
                 job_id = i;
                 break;
             }
-            if (job_id < 0) {
-                fprintf(stderr, "%s: no current jobs\n", cmd->argv[0]);
-                return 1;
-            }
+        }
+
+        if (job_id < 0) {
+            fprintf(stderr, "%s: no current jobs\n", cmd->argv[0]);
+            return 1;
         }
     } else {
         convert_to_integer(cmd->argv[1], &job_id);
@@ -140,20 +145,20 @@ int builtin_fg_bg(Shell *s, Command *cmd, bool run_in_bg) {
         fprintf(stderr, "%s: invalid job number\n", cmd->argv[0]);
         return 1;
     }
-    if (run_in_bg && s->jt[job_id].state == JOB_STATE_BG) {
+    if (run_in_bg && s->jt.jobs[job_id].state == JOB_STATE_BG) {
         fprintf(stderr, "bg: job %d already in background\n", job_id);
         return 1;
     }
 
-    int pgid = s->jt[job_id].pgid;
+    int pgid = s->jt.jobs[job_id].pgid;
     jt_update_job_state(s, job_id, new_state);
 
-    printf("[%d] %d", job_id, pgid);
+    printf("[%d] %s\n", job_id, jt_get_cmd_line(s, job_id));
 
     kill(-pgid, SIGCONT);
 
     if (!run_in_bg) {
-        int cmd_cnt = s->jt[job_id].cmd_cnt;
+        int cmd_cnt = s->jt.jobs[job_id].cmd_cnt;
         return await_job(s, job_id, pgid, cmd_cnt);
     }
 
@@ -166,7 +171,7 @@ int builtin_jobs(Shell *s) {
 }
 
 int builtin_kill(Shell *s, Command *cmd) {
-    if (cmd->argc < 3 || cmd->argv[1][0] != '-') {
+    if (cmd->argc != 3 || cmd->argv[1][0] != '-') {
         fprintf(stderr, "kill: usage: kill -signum [ pid | jobspec ]\n");
         return 1;
     }
@@ -186,9 +191,9 @@ int builtin_kill(Shell *s, Command *cmd) {
             return 1;
         }
 
-        pid = -(s->jt[job_id].pgid);
+        pid = -(s->jt.jobs[job_id].pgid);
     } else {
-        if (convert_to_integer(cmd->argv[2], &pid) < 0) { // skip '-'
+        if (convert_to_integer(cmd->argv[2], &pid) < 0) {
             fprintf(stderr, "kill: invalid process id\n");
             return 1;
         }

@@ -170,16 +170,17 @@ int parse_line(Shell *s, char *line, size_t len, Pipeline *pl_out) {
 
     if (token_cnt) {
         size_t max_argv_len = sizeof(tokens) * (token_cnt + 1);
-        size_t exit_code_str_len = 4; // three digits (8-bits) + null terminator
+        size_t exit_code_str_len = sizeof(char) * 4; // three digits (8-bits) + null terminator
+        size_t max_stripped_line_len = sizeof(char) * len;  // for printing the job later (len already includes null terminator)
 
         /*
          * Arena allocation that holds args (pointers into line), a NULL separator, and the previous exit code (last 4 bytes; for expanding $?)
          * i.e.
-         * arg_arena: [[argv pointers], NULL, [padding], "130"]]
+         * arg_arena: [[argv pointers], NULL, [padding], exit code (str), stripped command line (str)]
          *             |  |   |
          * line:      [..0...0.....0]
          */
-        void *arg_arena = malloc(max_argv_len + exit_code_str_len);
+        void *arg_arena = malloc(max_argv_len + exit_code_str_len + max_stripped_line_len);
         if (!arg_arena) {
             free(tokens);
             return PARSE_ERR_MALLOC;
@@ -188,9 +189,27 @@ int parse_line(Shell *s, char *line, size_t len, Pipeline *pl_out) {
         char **argv_start = arg_arena;
         char *exit_code_start = (char *)arg_arena + max_argv_len;
         snprintf(exit_code_start, exit_code_str_len, "%d", s->last_status);
+        
+        char *cmd_line_start = exit_code_start + exit_code_str_len;
+
+        char *next_token_start = cmd_line_start;
+        for (size_t i = 0; i < token_cnt; i++) {
+            size_t token_len = strlen(tokens[i]);
+            memcpy(next_token_start, tokens[i], token_len);
+
+            if (i + 1 < token_cnt) {
+                next_token_start[token_len] = ' ';
+            } else {
+                next_token_start[token_len] = '\0';
+            }
+
+            next_token_start += token_len + 1;
+        }
+
 
         Pipeline pl = {0};
         pl.prev_pipe = -1;
+        pl.cmd_line = cmd_line_start;
 
         pl.run_in_bg = *(tokens[token_cnt - 1]) == '&';
         if (pl.run_in_bg) {

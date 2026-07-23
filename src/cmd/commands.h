@@ -22,6 +22,7 @@ typedef struct Command {
 typedef struct Pipeline {
     Command cmds[MAX_CMDS_PER_JOB];
     size_t cmd_cnt;
+    char *cmd_line;
     pid_t pgid;
     pid_t last_pid;
     int prev_pipe;

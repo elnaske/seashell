@@ -22,10 +22,12 @@ extern volatile sig_atomic_t sigchld_received;
 
 int shell_init(Shell *s) {
     void *jt = calloc(MAX_JOBS, sizeof(JobTableEntry));
-    if (!jt) {
+    void *cmd_lines = malloc(MAX_JOBS * (MAX_CMD_LINE_LEN + 1) * sizeof(char));
+    if (!jt || !cmd_lines) {
         return -1;
     }
-    s->jt = jt;
+    s->jt.jobs = jt;
+    s->jt.cmd_lines = cmd_lines;
     s->pgid = getpgrp();
     s->fg_pgid = -1;
     s->last_status = 0;
@@ -83,6 +85,6 @@ int shell_run(Shell *s) {
         free_pipeline(&pl);
         free(line);
     }
-    free(s->jt);
+    free_jt(s);
     return s->last_status;
 }

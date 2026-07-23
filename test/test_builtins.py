@@ -176,6 +176,7 @@ def test_jobs_running():
 
     assert res.returncode == 0
     assert "[0] Running" in res.stdout
+    assert "sleep 0.2 &" in res.stdout
 
 
 def test_jobs_stopped():
