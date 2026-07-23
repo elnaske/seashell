@@ -7,19 +7,31 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "commands.h"
-#include "parse.h"
-#include "redirect.h"
-#include "sighandlers.h"
-#include "syscall_wrappers.h"
+#include "../cmd/pipeline.h"
+#include "../parser/parse.h"
+#include "../sys/redirect.h"
+#include "../sys/sighandlers.h"
+#include "../sys/syscall_wrappers.h"
+#include "../options.h"
+#include "jobs.h"
 
-#define COL_GREEN "\033[32m"
-#define COL_BLUE "\033[34m"
-#define COL_CLR "\033[0m"
+#ifdef COLORED_PROMPT
+    #define COL_CLR "\033[0m"
+#else
+    #define PROMPT_COL_1 ""
+    #define PROMPT_COL_2 ""
+    #define COL_CLR ""
+#endif
 
 extern volatile sig_atomic_t sigchld_received;
 
 int shell_init(Shell *s) {
+    JobTable jt;
+    if (jt_init(&jt) < 0) {
+        return -1;
+    }
+
+    s->jt = jt;
     s->pgid = getpgrp();
     s->fg_pgid = -1;
     s->last_status = 0;
@@ -45,27 +57,26 @@ static inline void set_last_status(Shell *s, int status) {
 
 int shell_run(Shell *s) {
     while (s->running) {
-        printf(COL_GREEN "seashell" COL_CLR ":" COL_BLUE "%s" COL_CLR "$ ", s->cwd);
+        printf(PROMPT_COL_1 "seashell" COL_CLR ":" PROMPT_COL_2 "%s" COL_CLR "$ ", s->cwd);
 
         char *line = NULL;
         size_t len = 0;
-        ssize_t n_read = getline(&line, &len, stdin);
+        int n_read = getline(&line, &len, stdin);
 
         if (n_read == -1) {
             free(line);
             return -1;
         }
 
-        Job job = {0};
-        int status = parse_line(s, line, len, &job);
-        if (status != PARSE_OK) {
+        Pipeline pl = {0};
+        int status = parse_line(s, line, len, &pl);
+
+        if (status == PARSE_OK) {
+            status = run_pipeline(s, &pl);
+        } else {
             print_syntax_error(status);
-            set_last_status(s, status);
-            free(line);
-            continue;
         }
 
-        status = run_job(s, &job);
         set_last_status(s, status);
 
         if (sigchld_received) {
@@ -73,8 +84,11 @@ int shell_run(Shell *s) {
             sigchld_received = 0;
         }
 
-        free_job(&job);
+        jt_clear_finished_jobs(s);
+
+        free_pipeline(&pl);
         free(line);
     }
+    free_jt(s);
     return s->last_status;
 }

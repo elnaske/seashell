@@ -23,6 +23,38 @@ def test_pipe_2():
     assert "olleh" in res.stdout
 
 
+def test_pipe_builtin():
+    res = run_shell("""\
+        sleep 0.2 &
+        jobs | grep -o Run | rev
+        exit
+        """)
+
+    assert res.returncode == 0
+    assert "nuR" in res.stdout
+
+def test_pipe_builtin_child_proc():
+    res = run_shell("""\
+        echo test | cd /tmp
+        pwd
+        exit
+        """)
+
+    assert res.returncode == 0
+    assert "/tmp" not in res.stdout
+
+
+def test_err_sequential_pipes():
+    res = run_shell("""\
+        echo hello | | rev
+        exit
+        """)
+
+    assert res.returncode != 0
+    assert "hello" not in res.stdout
+    assert "olleh" not in res.stdout
+
+
 def test_redirect_stdin_stdout():
     with tempfile.TemporaryDirectory() as tmp:
         with open(f"{tmp}/a.txt", 'w') as f:

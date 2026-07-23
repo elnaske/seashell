@@ -2,7 +2,7 @@
 #include <stddef.h>
 
 typedef struct Shell Shell;
-typedef struct Job Job;
+typedef struct Pipeline Pipeline;
 
 typedef enum {
     PARSE_OK,
@@ -13,6 +13,6 @@ typedef enum {
     PARSE_ERR_AMPERSAND,
 } ParseStatus;
 
-void print_syntax_error(int status);
+int parse_line(Shell *s, char *line, size_t len, Pipeline *pl_out);
 
-int parse_line(Shell *s, char *line, size_t len, Job *job_out);
+void print_syntax_error(int status);

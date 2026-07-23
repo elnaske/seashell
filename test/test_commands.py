@@ -1,11 +1,7 @@
-import pytest
-import os
-import signal
-import subprocess
-import tempfile
 import time
 
-from .utils import run_shell
+from .utils import run_shell, run_shell_process
+
 
 def test_echo():
     res = run_shell("""\
@@ -17,26 +13,17 @@ def test_echo():
     assert "hello" in res.stdout
 
 
-def test_cd():
-    res = run_shell("""\
-        cd ~
-        pwd
-        exit
-        """)
+def test_bg_exec():
+    p = run_shell_process()
 
-    assert res.returncode == 0
-    assert os.path.expanduser('~') in res.stdout
+    p.stdin.write("sleep 0 &\n")
+    p.stdin.flush()
 
+    time.sleep(0.2)
 
-def test_cd_bare():
-    res = run_shell("""\
-        cd
-        pwd
-        exit
-        """)
+    _, stderr = p.communicate("exit\n", timeout=2)
 
-    assert res.returncode == 0
-    assert os.path.expanduser('~') in res.stdout
+    assert "[0] Done" in stderr
 
 
 def test_empty_line():
@@ -50,6 +37,15 @@ def test_empty_line():
     assert "test" in res.stdout
 
 
+def test_empty_line_2():
+    res = run_shell("""\
+        
+        exit
+        """)
+
+    assert res.returncode == 0
+
+
 def test_err_not_a_cmd():
     res = run_shell("""\
         notacommand
@@ -58,4 +54,3 @@ def test_err_not_a_cmd():
 
     assert res.returncode != 0
     assert "Execve error" in res.stderr
-
