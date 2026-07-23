@@ -29,6 +29,6 @@ int run_pipeline(Shell *s, Pipeline *pl);
 
 int await_job(Shell *s, int job_id, pid_t pgid, size_t cmd_cnt);
 
-int init_arg_arena(ArgArena *arena, char **tokens, size_t token_cnt, size_t cmd_line_len, int last_status);
+int arg_arena_init(ArgArena *arena, char **tokens, size_t token_cnt, size_t cmd_line_len, int last_status);
 
 void free_pipeline(Pipeline *pl);

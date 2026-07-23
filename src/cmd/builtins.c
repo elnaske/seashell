@@ -8,8 +8,8 @@
 
 #include "../core/shell.h"
 #include "../sys/syscall_wrappers.h"
-#include "pipeline.h"
 #include "commands.h"
+#include "pipeline.h"
 
 inline bool is_builtin(BuiltinKind b) {
     return b != NOT_A_BUILTIN;
@@ -116,6 +116,16 @@ int convert_to_integer(char *s, int *int_out) {
     return 0;
 }
 
+static int resume_first_fit(Shell *s, bool run_in_bg) {
+    for (int i = 0; i < MAX_JOBS; i++) {
+        int curr_state = s->jt.jobs[i].state;
+        if (curr_state == JOB_STATE_STOPPED || (!run_in_bg && curr_state == JOB_STATE_BG)) {
+            return i;
+        }
+    }
+    return 0;
+}
+
 int builtin_fg_bg(Shell *s, Command *cmd, bool run_in_bg) {
     if (cmd->argc > 2) {
         fprintf(stderr, "%s: too many arguments\n", cmd->argv[0]);
@@ -125,18 +135,15 @@ int builtin_fg_bg(Shell *s, Command *cmd, bool run_in_bg) {
 
     int job_id = -1;
     if (cmd->argc == 1) {
-        // TODO: resume most recent job instead of first job id
-        for (int i = 0; i < MAX_JOBS; i++) {
-            int curr_state = s->jt.jobs[i].state;
-            if (curr_state == JOB_STATE_STOPPED || (!run_in_bg && curr_state == JOB_STATE_BG)) {
-                job_id = i;
-                break;
+        if (job_id_is_valid(s, s->jt.most_recent_id)) {
+            job_id = s->jt.most_recent_id;
+        } else {
+            job_id = resume_first_fit(s, run_in_bg);
+            
+            if (job_id < 0) {
+                fprintf(stderr, "%s: no current jobs\n", cmd->argv[0]);
+                return 1;
             }
-        }
-
-        if (job_id < 0) {
-            fprintf(stderr, "%s: no current jobs\n", cmd->argv[0]);
-            return 1;
         }
     } else {
         convert_to_integer(cmd->argv[1], &job_id);
@@ -152,9 +159,9 @@ int builtin_fg_bg(Shell *s, Command *cmd, bool run_in_bg) {
     }
 
     int pgid = s->jt.jobs[job_id].pgid;
-    jt_update_job_state(s, job_id, new_state);
 
-    printf("[%d] %s\n", job_id, jt_get_cmd_line(s, job_id));
+    jt_update_job_state(s, job_id, new_state);
+    fprintf(stderr, "[%d] %s\n", job_id, jt_get_cmd_line(s, job_id));
 
     kill(-pgid, SIGCONT);
 

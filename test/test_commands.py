@@ -1,4 +1,6 @@
-from .utils import run_shell
+import time
+
+from .utils import run_shell, run_shell_process
 
 
 def test_echo():
@@ -9,6 +11,19 @@ def test_echo():
 
     assert res.returncode == 0
     assert "hello" in res.stdout
+
+
+def test_bg_exec():
+    p = run_shell_process()
+
+    p.stdin.write("sleep 0 &\n")
+    p.stdin.flush()
+
+    time.sleep(0.2)
+
+    _, stderr = p.communicate("exit\n", timeout=2)
+
+    assert "[0] Done" in stderr
 
 
 def test_empty_line():

@@ -162,7 +162,7 @@ int parse_line(Shell *s, char *line, size_t len, Pipeline *pl_out) {
 
     if (token_cnt) {
         ArgArena mem_arena;
-        if (init_arg_arena(&mem_arena, tokens, token_cnt, len, s->last_status) < 0) {
+        if (arg_arena_init(&mem_arena, tokens, token_cnt, len, s->last_status) < 0) {
             free(tokens);
             return PARSE_ERR_MALLOC;
         }

@@ -47,6 +47,20 @@ def test_fg_bare():
 
     assert res.returncode == 0
     assert "[0] Done" not in res.stderr
+    
+def test_fg_resume_most_recent():
+    res = run_shell("""\
+        sleep 0.2 &
+        sleep 0.3 &
+        fg
+        exit
+        """)
+
+    assert res.returncode == 0
+    assert "[1] sleep 0.3 &" in res.stderr
+    assert "[0] sleep 0.2 &" not in res.stderr
+    assert "[1] Done" not in res.stderr
+    assert "[0] Done" in res.stderr
 
 
 def test_fg_err_no_current_job():

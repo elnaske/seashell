@@ -21,11 +21,13 @@ typedef struct JobTableEntry {
     JobState state;
 } JobTableEntry;
 
-// typedef JobTableEntry *JobTable;
 typedef struct JobTable {
     JobTableEntry *jobs;
     char *cmd_lines;
+    int most_recent_id; // only storing the most recent for now (could be replaced with a linked list in the future)
 } JobTable;
+
+int jt_init(JobTable *jt);
 
 void free_jt(Shell *s);
 
@@ -38,6 +40,8 @@ int jt_first_free(Shell *s);
 bool jt_is_full(Shell *s);
 
 int jt_update_job_state(Shell *s, int job_id, JobState state);
+
+int jt_update(Shell *s, int job_id, int cmd_status, bool ran_in_bg);
 
 int jt_get_job_id(Shell *s, pid_t pgid);
 

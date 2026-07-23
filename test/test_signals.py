@@ -33,7 +33,7 @@ def test_sigint_returncode():
 
     os.kill(p.pid, signal.SIGINT)
 
-    stdout, _ = p.communicate("exit\n", timeout=2)
+    _, _ = p.communicate("exit\n", timeout=2)
 
     assert p.returncode == 130
 
@@ -67,19 +67,6 @@ def test_sigtstp_returncode():
 
     os.kill(p.pid, signal.SIGTSTP)
 
-    stdout, _ = p.communicate("exit\n", timeout=2)
+    _, _ = p.communicate("exit\n", timeout=2)
 
     assert p.returncode == 148
-
-
-def test_bg_exec():
-    p = run_shell_process()
-
-    p.stdin.write("sleep 0 &\n")
-    p.stdin.flush()
-
-    time.sleep(0.2)
-
-    _, stderr = p.communicate("exit\n", timeout=2)
-
-    assert "[0] Done" in stderr

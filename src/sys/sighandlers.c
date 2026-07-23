@@ -36,10 +36,7 @@ void reap_children(Shell *s) {
 
     while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
         int job_id = jt_get_job_id(s, pid);
-        if (job_id_is_valid(s, job_id)) {
-            fprintf(stderr, "[%d] Done\n", job_id);
-            jt_update_job_state(s, job_id, JOB_STATE_DONE);
-        }
+        jt_update(s, job_id, status, true);
     }
 
     if (errno && errno != ECHILD) {

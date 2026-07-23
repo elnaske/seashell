@@ -43,21 +43,7 @@ int await_job(Shell *s, int job_id, pid_t pgid, size_t cmd_cnt) {
 
     Tcsetpgrp(STDIN_FILENO, s->pgid);
 
-    int job_status;
-    if (WIFSIGNALED(cmd_status)) {
-        jt_update_job_state(s, job_id, JOB_STATE_DONE);
-        printf("\n");
-        job_status = 128 + WTERMSIG(cmd_status);
-    } else if (WIFSTOPPED(cmd_status)) {
-        jt_update_job_state(s, job_id, JOB_STATE_STOPPED);
-        printf("\n[%d] Stopped\n", job_id);
-        job_status = 128 + WSTOPSIG(cmd_status);
-    } else {
-        jt_update_job_state(s, job_id, JOB_STATE_DONE);
-        job_status = WEXITSTATUS(cmd_status);
-    }
-
-    return job_status;
+    return jt_update(s, job_id, cmd_status, false);
 }
 
 int run_pipeline(Shell *s, Pipeline *pl) {
@@ -99,7 +85,7 @@ int run_pipeline(Shell *s, Pipeline *pl) {
     }
 
     int job_status = 0;
-    
+
     if (cmds_remaining) {
         int job_id = jt_add_entry(s, pl);
         if (!job_id_is_valid(s, job_id)) {
@@ -116,7 +102,7 @@ int run_pipeline(Shell *s, Pipeline *pl) {
     return job_status;
 }
 
-int init_arg_arena(ArgArena *arena, char **tokens, size_t token_cnt, size_t cmd_line_len, int last_status) {
+int arg_arena_init(ArgArena *arena, char **tokens, size_t token_cnt, size_t cmd_line_len, int last_status) {
     if (!arena) return -1;
 
     size_t max_argv_len = sizeof(tokens) * (token_cnt + 1);
