@@ -80,9 +80,8 @@ void jt_clear_finished_jobs(Shell *s) {
 
 void jt_print(Shell *s) {
     for (int i = 0; i < MAX_JOBS; i++) {
-        JobTableEntry jte = s->jt[i];
-        if (jte.state != JOB_STATE_FREE) {
-            printf("[%d] %s\t\t%d\n", i, get_job_state_str(jte.state), jte.pgid);
+        if (s->jt[i].state != JOB_STATE_FREE) {
+            printf("[%d] %s\t\t%d\n", i, get_job_state_str(s->jt[i].state), s->jt[i].pgid);
         }
     }
 }

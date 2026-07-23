@@ -69,12 +69,10 @@ int await_job(Shell *s, int job_id, pid_t pgid, size_t cmd_cnt) {
 int run_command(Command *cmd, Pipeline *pl, bool is_last) {
     if (!cmd || !cmd->argc || !pl) return -1;
 
-    int prev_pipe = pl->prev_pipe;
-
     int pipefd[2] = {-1, -1};
     if (!is_last && Pipe(pipefd) < 0) {
-        if (prev_pipe > -1) {
-            Close(prev_pipe);
+        if (pl->prev_pipe > -1) {
+            Close(pl->prev_pipe);
         }
         return -1;
     }
@@ -90,7 +88,7 @@ int run_command(Command *cmd, Pipeline *pl, bool is_last) {
     if (pid == 0) {
         Setpgid(0, pl->pgid); // pgid = 0 for first command
 
-        if (apply_pipe(prev_pipe, pipe_read, pipe_write) < 0) {
+        if (apply_pipe(pl->prev_pipe, pipe_read, pipe_write) < 0) {
             exit(1);
         }
         if (apply_redirections(cmd) < 0) {
@@ -106,14 +104,10 @@ int run_command(Command *cmd, Pipeline *pl, bool is_last) {
 
     Setpgid(pid, pl->pgid);
 
-    // if (update_pipe_read_end(&prev_pipe, pipefd) < 0) {
-    //     return -1;
-    // }
-    if (update_pipe_read_end(&prev_pipe, pipe_read, pipe_write) < 0) {
+    if (update_pipe_read_end(pl, pipe_read, pipe_write) < 0) {
         return -1;
     }
 
-    pl->prev_pipe = prev_pipe;
     pl->last_pid = pid;
 
     return 0;

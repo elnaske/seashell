@@ -119,10 +119,10 @@ int apply_pipe(int prev_pipe, int read_fd, int write_fd) {
     return 0;
 }
 
-int update_pipe_read_end(int *prev_pipe, int read_fd, int write_fd) {
-    if (!prev_pipe) return -1;
+int update_pipe_read_end(Pipeline *pl, int read_fd, int write_fd) {
+    if (!pl) return -1;
 
-    if (*prev_pipe > -1 && Close(*prev_pipe) < 0) {
+    if (pl->prev_pipe > -1 && Close(pl->prev_pipe) < 0) {
         return -1;
     }
 
@@ -130,9 +130,9 @@ int update_pipe_read_end(int *prev_pipe, int read_fd, int write_fd) {
         if (Close(read_fd) < 0) {
             return -1;
         }
-        *prev_pipe = write_fd;
+        pl->prev_pipe = write_fd;
     } else {
-        *prev_pipe = -1;
+        pl->prev_pipe = -1;
     }
 
     return 0;

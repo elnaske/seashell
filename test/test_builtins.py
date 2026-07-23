@@ -59,6 +59,17 @@ def test_fg_err_no_current_job():
     assert "fg" in res.stderr
 
 
+def test_fg_err_invalid_job_id():
+    res = run_shell("""\
+        sleep 0.2 &
+        fg abc
+        exit
+        """)
+
+    assert res.returncode != 0
+    assert "fg" in res.stderr
+
+
 def test_fg_err_no_job_ctl():
     res = run_shell("""\
         sleep 0.2 &
@@ -113,6 +124,15 @@ def test_bg_bare():
 
     assert p.returncode == 0
     assert "[0] Done" in stderr
+
+def test_fg_err_invalid_job_id():
+    res = run_shell("""\
+        bg abc
+        exit
+        """)
+
+    assert res.returncode != 0
+    assert "bg" in res.stderr
 
 
 def test_bg_err_no_current_job():
@@ -197,3 +217,45 @@ def test_jobs_resumed():
 
     assert p.returncode == 0
     assert "[0] Running" in stdout
+
+
+def test_kill():
+    res = run_shell("""\
+        sleep 10 &
+        kill -9 %0
+        exit
+        """)
+
+    assert res.returncode == 0
+
+
+def test_kill_err_invalid_signal():
+    res = run_shell("""\
+        sleep 0.2 &
+        kill -abc %0
+        exit
+        """)
+
+    assert res.returncode != 0
+    assert "kill:" in res.stderr
+
+
+def test_kill_err_invalid_job():
+    res = run_shell("""\
+        sleep 0.2 &
+        kill -9 %abc
+        exit
+        """)
+
+    assert res.returncode != 0
+    assert "kill:" in res.stderr
+
+
+def test_kill_err_invalid_process():
+    res = run_shell("""\
+        kill -9 abc
+        exit
+        """)
+
+    assert res.returncode != 0
+    assert "kill:" in res.stderr

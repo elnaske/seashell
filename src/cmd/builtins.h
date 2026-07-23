@@ -11,6 +11,7 @@ typedef enum {
     BUILTIN_FG,
     BUILTIN_BG,
     BUILTIN_JOBS,
+    BUILTIN_KILL,
 } BuiltinKind;
 
 bool is_builtin(BuiltinKind b);

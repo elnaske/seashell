@@ -27,6 +27,8 @@ int match_builtin(Command *cmd) {
         return BUILTIN_BG;
     if (strcmp(arg, "jobs") == 0)
         return BUILTIN_JOBS;
+    if (strcmp(arg, "kill") == 0)
+        return BUILTIN_KILL;
 
     return NOT_A_BUILTIN;
 }
@@ -34,6 +36,7 @@ int match_builtin(Command *cmd) {
 int builtin_cd(Shell *s, Command *cmd);
 int builtin_fg_bg(Shell *s, Command *cmd, bool run_in_bg);
 int builtin_jobs(Shell *s);
+int builtin_kill(Shell *s, Command *cmd);
 
 static int _run_builtin(Shell *s, BuiltinKind b, Command *cmd) {
     switch (b) {
@@ -48,6 +51,8 @@ static int _run_builtin(Shell *s, BuiltinKind b, Command *cmd) {
         return builtin_fg_bg(s, cmd, true);
     case BUILTIN_JOBS:
         return builtin_jobs(s);
+    case BUILTIN_KILL:
+        return builtin_kill(s, cmd);
     case NOT_A_BUILTIN:
         return -1;
     }
@@ -95,6 +100,21 @@ int builtin_cd(Shell *s, Command *cmd) {
     return 0;
 }
 
+int convert_to_integer(char *s, int *int_out) {
+    if (!int_out) return -1;
+
+    char *end;
+
+    long res = strtol(s, &end, 10);
+
+    if (end == s || *end != '\0' || errno == ERANGE) {
+        return -1;
+    }
+
+    *int_out = res;
+    return 0;
+}
+
 int builtin_fg_bg(Shell *s, Command *cmd, bool run_in_bg) {
     int new_state = run_in_bg ? JOB_STATE_BG : JOB_STATE_FG;
 
@@ -113,7 +133,7 @@ int builtin_fg_bg(Shell *s, Command *cmd, bool run_in_bg) {
             }
         }
     } else {
-        job_id = strtol(cmd->argv[1], NULL, 10);
+        convert_to_integer(cmd->argv[1], &job_id);
     }
 
     if (!job_id_is_valid(s, job_id)) {
@@ -142,5 +162,41 @@ int builtin_fg_bg(Shell *s, Command *cmd, bool run_in_bg) {
 
 int builtin_jobs(Shell *s) {
     jt_print(s);
+    return 0;
+}
+
+int builtin_kill(Shell *s, Command *cmd) {
+    if (cmd->argc < 3 || cmd->argv[1][0] != '-') {
+        fprintf(stderr, "kill: usage: kill -signum [ pid | jobspec ]\n");
+        return 1;
+    }
+
+    int sig;
+    if (convert_to_integer(cmd->argv[1] + 1, &sig) < 0) { // skip '-'
+        fprintf(stderr, "kill: invalid signal\n");
+        return 1;
+    }
+
+    int pid;
+    if (cmd->argv[2][0] == '%') {
+        int job_id = -1;
+        convert_to_integer(cmd->argv[2] + 1, &job_id); // skip '%'
+        if (!job_id_is_valid(s, job_id)) {
+            fprintf(stderr, "kill: invalid job id\n");
+            return 1;
+        }
+
+        pid = -(s->jt[job_id].pgid);
+    } else {
+        if (convert_to_integer(cmd->argv[2], &pid) < 0) { // skip '-'
+            fprintf(stderr, "kill: invalid process id\n");
+            return 1;
+        }
+    }
+
+    if (Kill(pid, sig) < 0) {
+        return 1;
+    }
+
     return 0;
 }

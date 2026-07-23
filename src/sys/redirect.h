@@ -1,6 +1,7 @@
 #pragma once
 
 typedef struct Command Command;
+typedef struct Pipeline Pipeline;
 
 typedef enum {
     REDIR_NONE,
@@ -35,4 +36,4 @@ int apply_redirections(Command *cmd);
 
 int apply_pipe(int prev_pipe, int read_fd, int write_fd);
 
-int update_pipe_read_end(int *prev_pipe, int read_fd, int write_fd);
+int update_pipe_read_end(Pipeline *pl, int read_fd, int write_fd);
