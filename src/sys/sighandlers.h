@@ -1,8 +1,10 @@
 #pragma once
 
+typedef struct Shell Shell;
+
 void install_signal_handler(int signum, void (*handler)(int));
 
-void reap_children();
+void reap_children(Shell *s);
 
 void sigchld_handler(int sig);
 

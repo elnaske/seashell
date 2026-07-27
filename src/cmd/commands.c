@@ -52,7 +52,7 @@ int run_command(Shell *s, Command *cmd, Pipeline *pl, bool is_last) {
 
         BuiltinKind b = match_builtin(cmd);
         if (is_builtin(b)) {
-            int status = run_builtin(s, b, &cmd);
+            int status = run_builtin(s, b, cmd);
             exit(status);
 
         } else {

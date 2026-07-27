@@ -11,6 +11,24 @@
 #include "commands.h"
 #include "pipeline.h"
 
+int builtin_exit(Shell *s, Command *cmd);
+int builtin_cd(Shell *s, Command *cmd);
+int builtin_fg(Shell *s, Command *cmd);
+int builtin_bg(Shell *s, Command *cmd);
+int builtin_jobs(Shell *s, Command *cmd);
+int builtin_kill(Shell *s, Command *cmd);
+
+const Builtin g_builtins[] = {
+    {"exit", BUILTIN_EXIT, &builtin_exit},
+    {"cd", BUILTIN_CD, &builtin_cd},
+    {"fg", BUILTIN_FG, &builtin_fg},
+    {"bg", BUILTIN_BG, &builtin_bg},
+    {"jobs", BUILTIN_JOBS, &builtin_jobs},
+    {"kill", BUILTIN_KILL, &builtin_kill},
+    {NULL, NOT_A_BUILTIN, NULL},
+};
+
+
 inline bool is_builtin(BuiltinKind b) {
     return b != NOT_A_BUILTIN;
 }
@@ -22,44 +40,19 @@ inline bool can_run_in_bg(BuiltinKind b) {
 int match_builtin(Command *cmd) {
     char *arg = cmd->argv[0];
 
-    if (strcmp(arg, "exit") == 0)
-        return BUILTIN_EXIT;
-    if (strcmp(arg, "cd") == 0)
-        return BUILTIN_CD;
-    if (strcmp(arg, "fg") == 0)
-        return BUILTIN_FG;
-    if (strcmp(arg, "bg") == 0)
-        return BUILTIN_BG;
-    if (strcmp(arg, "jobs") == 0)
-        return BUILTIN_JOBS;
-    if (strcmp(arg, "kill") == 0)
-        return BUILTIN_KILL;
-
+    for (size_t i = 0; g_builtins[i].strname != NULL; i++) {
+        if (strcmp(arg, g_builtins[i].strname) == 0) {
+            return g_builtins[i].kind;
+        }
+    }
     return NOT_A_BUILTIN;
 }
 
-int builtin_cd(Shell *s, Command *cmd);
-int builtin_fg_bg(Shell *s, Command *cmd, bool run_in_bg);
-int builtin_jobs(Shell *s);
-int builtin_kill(Shell *s, Command *cmd);
-
 static int _run_builtin(Shell *s, BuiltinKind b, Command *cmd) {
-    switch (b) {
-    case BUILTIN_EXIT:
-        s->running = false;
-        return s->last_status;
-    case BUILTIN_CD:
-        return builtin_cd(s, cmd);
-    case BUILTIN_FG:
-        return builtin_fg_bg(s, cmd, false);
-    case BUILTIN_BG:
-        return builtin_fg_bg(s, cmd, true);
-    case BUILTIN_JOBS:
-        return builtin_jobs(s);
-    case BUILTIN_KILL:
-        return builtin_kill(s, cmd);
-    case NOT_A_BUILTIN:
-        return -1;
+    for (size_t i = 0; g_builtins[i].kind != NOT_A_BUILTIN; i++) {
+        if (b == g_builtins[i].kind) {
+            return g_builtins[i].run(s, cmd);
+        }
     }
     return -1;
 }
@@ -84,6 +77,12 @@ int run_builtin(Shell *s, BuiltinKind b, Command *cmd) {
     }
 
     return status;
+}
+
+int builtin_exit(Shell *s, Command *cmd) {
+    (void)cmd;
+    s->running = false;
+    return s->last_status;
 }
 
 int builtin_cd(Shell *s, Command *cmd) {
@@ -177,7 +176,16 @@ int builtin_fg_bg(Shell *s, Command *cmd, bool run_in_bg) {
     return 0;
 }
 
-int builtin_jobs(Shell *s) {
+int builtin_fg(Shell *s, Command *cmd) {
+    return builtin_fg_bg(s, cmd, false);
+}
+
+int builtin_bg(Shell *s, Command *cmd) {
+    return builtin_fg_bg(s, cmd, true);
+}
+
+int builtin_jobs(Shell *s, Command *cmd) {
+    (void)cmd;
     jt_print(s);
     return 0;
 }

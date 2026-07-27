@@ -80,7 +80,7 @@ int shell_run(Shell *s) {
         set_last_status(s, status);
 
         if (sigchld_received) {
-            reap_children();
+            reap_children(s);
             sigchld_received = 0;
         }
 

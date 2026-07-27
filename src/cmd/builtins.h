@@ -14,6 +14,12 @@ typedef enum {
     BUILTIN_KILL,
 } BuiltinKind;
 
+typedef struct Builtin {
+    char *strname;
+    BuiltinKind kind;
+    int (*run)(Shell *, Command *);
+} Builtin;
+
 bool is_builtin(BuiltinKind b);
 
 bool can_run_in_bg(BuiltinKind b);
