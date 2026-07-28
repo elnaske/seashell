@@ -12,6 +12,7 @@ typedef struct Shell {
     volatile pid_t fg_pgid;
     uint8_t last_status;
     char cwd[MAX_PATHNAME_LENGTH];
+    char **completions;
     bool running;
 } Shell;
 

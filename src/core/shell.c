@@ -16,6 +16,7 @@
 #include "../sys/syscall_wrappers.h"
 #include "../options.h"
 #include "jobs.h"
+#include "completions.h"
 
 #ifdef COLORED_PROMPT
     #define COL_CLR "\033[0m"
@@ -42,6 +43,13 @@ int shell_init(Shell *s) {
         memcpy(s->cwd, "../", 4);
     }
 
+    char **cmd_list = build_command_list();
+    if (!cmd_list) {
+        return -1;
+    }
+    s->completions = cmd_list;
+    rl_attempted_completion_function = shell_completion;
+
     install_signal_handler(SIGCHLD, &sigchld_handler);
     install_signal_handler(SIGINT, &keyboard_interrupt_handler);
     install_signal_handler(SIGTSTP, &keyboard_interrupt_handler);
@@ -53,12 +61,19 @@ int shell_init(Shell *s) {
     return 0;
 }
 
+void free_shell(Shell *s) {
+    free_jt(s);
+    free(s->completions);
+    s->completions = NULL;
+}
+
 static inline void set_last_status(Shell *s, int status) {
     s->last_status = (uint8_t)abs(status);
 }
 
 int shell_run(Shell *s) {
     const char* base_prompt = PROMPT_COL_1 "seashell" COL_CLR ":";
+    
     const size_t buf_size = MAX_PATHNAME_LENGTH + 2 * strlen(base_prompt);
     char prompt_buf[buf_size];
 
@@ -98,6 +113,8 @@ int shell_run(Shell *s) {
         free_pipeline(&pl);
         free(line);
     }
-    free_jt(s);
+
+    free_shell(s);
+
     return s->last_status;
 }
