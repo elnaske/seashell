@@ -47,7 +47,7 @@ int shell_init(Shell *s) {
     if (!cmd_list) {
         return -1;
     }
-    s->completions = cmd_list;
+    s->cmd_list = cmd_list;
     rl_attempted_completion_function = shell_completion;
 
     install_signal_handler(SIGCHLD, &sigchld_handler);
@@ -63,8 +63,7 @@ int shell_init(Shell *s) {
 
 void free_shell(Shell *s) {
     free_jt(s);
-    free(s->completions);
-    s->completions = NULL;
+    free_command_list(s->cmd_list);
 }
 
 static inline void set_last_status(Shell *s, int status) {
