@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <readline/readline.h>
+#include <readline/history.h>
 
 #include "../cmd/pipeline.h"
 #include "../parser/parse.h"
@@ -56,17 +58,26 @@ static inline void set_last_status(Shell *s, int status) {
 }
 
 int shell_run(Shell *s) {
+    const char* base_prompt = PROMPT_COL_1 "seashell" COL_CLR ":";
+    const size_t buf_size = MAX_PATHNAME_LENGTH + 2 * strlen(base_prompt);
+    char prompt_buf[buf_size];
+
     while (s->running) {
-        printf(PROMPT_COL_1 "seashell" COL_CLR ":" PROMPT_COL_2 "%s" COL_CLR "$ ", s->cwd);
+        snprintf(prompt_buf, buf_size, "%s" PROMPT_COL_2 "%s" COL_CLR "$ ", base_prompt, s->cwd);
 
         char *line = NULL;
-        size_t len = 0;
-        int n_read = getline(&line, &len, stdin);
+        line = readline(prompt_buf);
 
-        if (n_read == -1) {
-            free(line);
-            return -1;
+        if (!line) {
+            continue;
         }
+
+        if (*line) {
+            add_history(line);
+        }
+
+        // TODO: tokenize w/o len
+        size_t len = strlen(line) + 1;
 
         Pipeline pl = {0};
         int status = parse_line(s, line, len, &pl);
