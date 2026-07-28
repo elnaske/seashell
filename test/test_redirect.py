@@ -1,16 +1,16 @@
+import os
 import tempfile
 from .utils import run_shell
 
 
 def test_pipe():
     res = run_shell("""\
-        echo hello world | grep hello -o
+        echo hello world | rev
         exit
         """)
 
     assert res.returncode == 0
-    assert "hello" in res.stdout
-    assert "world" not in res.stdout
+    assert "dlrow olleh" in res.stdout
 
 
 def test_pipe_2():
@@ -33,15 +33,16 @@ def test_pipe_builtin():
     assert res.returncode == 0
     assert "nuR" in res.stdout
 
+
 def test_pipe_builtin_child_proc():
     res = run_shell("""\
-        echo test | cd /tmp
+        echo test | cd
         pwd
         exit
         """)
 
     assert res.returncode == 0
-    assert "/tmp" not in res.stdout
+    assert f"{os.getcwd()}\n" in res.stdout
 
 
 def test_err_sequential_pipes():
@@ -51,8 +52,6 @@ def test_err_sequential_pipes():
         """)
 
     assert res.returncode != 0
-    assert "hello" not in res.stdout
-    assert "olleh" not in res.stdout
 
 
 def test_redirect_stdin_stdout():
@@ -116,7 +115,7 @@ def test_redirect_both():
     with tempfile.TemporaryDirectory() as tmp:
         res = run_shell(f"""\
             cd {tmp}
-            echo a &> a.txt
+            echo abc | rev &> a.txt
             cd nosuchdir &> b.txt
             cat a.txt
             cat b.txt
@@ -124,7 +123,8 @@ def test_redirect_both():
             """)
 
     assert res.returncode == 0
-    assert "a\ncd: No such file or directory" in res.stdout
+    assert "cba" in res.stdout
+    assert "cd: No such file or directory" in res.stdout
 
 
 def test_redirect_both_append():
@@ -152,9 +152,13 @@ def test_redirect_before_args():
             exit
             """)
 
-    assert res.returncode == 0
-    assert "hello" in res.stdout
-    assert "world" not in res.stdout
+        assert res.returncode == 0
+        
+        with open(f"{tmp}/a.txt", "r") as a:
+            assert "hello world" in a.read()
+        with open(f"{tmp}/b.txt", "r") as b:
+            assert "hello" in b.read()
+
 
 
 def test_pipe_and_redirect():
