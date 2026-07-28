@@ -76,10 +76,8 @@ int shell_run(Shell *s) {
             add_history(line);
         }
 
-        // TODO: tokenize w/o len
-        size_t len = strlen(line) + 1;
-
         Pipeline pl = {0};
+        size_t len = strlen(line);
         int status = parse_line(s, line, len, &pl);
 
         if (status == PARSE_OK) {

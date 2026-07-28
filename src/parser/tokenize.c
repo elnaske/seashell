@@ -8,7 +8,7 @@
 
 #include "../options.h"
 
-char **tokenize_line(char *line, size_t len, size_t *cnt_out) {
+char **tokenize_line(char *line, size_t *cnt_out) {
     if (!line) return NULL;
 
     char **tokens = malloc(sizeof(char *) * (MAX_ARGS + 1)); // terminated by NULL ptr
@@ -16,24 +16,28 @@ char **tokenize_line(char *line, size_t len, size_t *cnt_out) {
 
     size_t token_cnt = 0;
 
-    size_t idx = 0;
-    while (idx < len && line[idx] != '\0') {
-        while (idx < len && isspace(line[idx])) {
-            idx++;
+    char *curr = line;
+    while (*curr) {
+        while (isspace(*curr)) {
+            curr++;
         }
 
-        if (line[idx] == '\0') {
+        if (*curr == '\0') {
             break;
         }
 
-        size_t start = idx;
+        char *token_start = curr;
 
-        while (line[idx] != '\0' && !isspace(line[idx])) {
-            idx++;
+        while (*curr && !isspace(*curr)) {
+            curr++;
         }
 
-        line[idx++] = '\0';
-        tokens[token_cnt++] = line + start;
+        if (*curr) {
+            *curr = '\0';
+            curr++;
+        }
+
+        tokens[token_cnt++] = token_start;
 
         if (token_cnt >= MAX_ARGS) {
             fprintf(stderr, "Shell warning: Max number of arguments exceeded; ignoring all after '%s'\n", tokens[token_cnt - 1]);
