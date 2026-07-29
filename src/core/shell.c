@@ -48,7 +48,7 @@ int shell_init(Shell *s) {
         return -1;
     }
     s->cmd_list = cmd_list;
-    rl_attempted_completion_function = shell_completion;
+    rl_attempted_completion_function = &shell_completion;
 
     install_signal_handler(SIGCHLD, &sigchld_handler);
     install_signal_handler(SIGINT, &keyboard_interrupt_handler);
