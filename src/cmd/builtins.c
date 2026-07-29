@@ -28,7 +28,6 @@ const Builtin g_builtins[] = {
     {NULL, NOT_A_BUILTIN, NULL},
 };
 
-
 inline bool is_builtin(BuiltinKind b) {
     return b != NOT_A_BUILTIN;
 }

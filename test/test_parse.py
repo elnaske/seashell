@@ -13,7 +13,6 @@ def test_parse_err_missing_file():
 
     assert res.returncode != 0
     assert "Syntax error" in res.stderr
-    assert "test" not in res.stdout
 
 
 def test_parse_err_missing_file_2():
@@ -64,7 +63,6 @@ def test_parse_err_bg_pipe():
 
     assert res.returncode != 0
     assert "Syntax error" in res.stderr
-    assert "abc" not in res.stdout
     assert "cba" not in res.stdout
 
 

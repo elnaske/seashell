@@ -92,7 +92,7 @@ int arg_arena_init(ArgArena *arena, char **tokens, size_t token_cnt, size_t cmd_
 
     size_t max_argv_len = sizeof(tokens) * (token_cnt + 1);
     size_t exit_code_str_len = sizeof(char) * 4;                // three digits (8-bits) + null terminator
-    size_t max_stripped_line_len = sizeof(char) * cmd_line_len; // for printing the job later (len already includes null terminator)
+    size_t max_stripped_line_len = sizeof(char) * (cmd_line_len + 1); // for printing the job later 
 
     /*
      * Arena allocation that holds args (pointers into line), a NULL separator, and the previous exit code (last 4 bytes; for expanding $?)
