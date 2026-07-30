@@ -1,13 +1,14 @@
 #include "tokenize.h"
 
 #include <ctype.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "parse.h"
 #include "../options.h"
+#include "parse.h"
 
 typedef enum {
     NORMAL,
@@ -15,7 +16,11 @@ typedef enum {
     IN_DOUBLE_QUOTES,
 } TokenizerState;
 
-int tokenize_line(char *line, char *line_tokenized, char ***tokens_out, size_t *cnt_out) {
+static bool is_escapable(char c) {
+    return c == '\'' || c == '"';
+}
+
+int tokenize_line(char *line, size_t len, char *line_tokenized, char ***tokens_out, size_t *cnt_out) {
     if (!line || !line_tokenized || !tokens_out) return -1;
 
     char **tokens = malloc(sizeof(char *) * (MAX_ARGS + 1)); // terminated by NULL ptr
@@ -24,38 +29,53 @@ int tokenize_line(char *line, char *line_tokenized, char ***tokens_out, size_t *
     size_t token_cnt = 0;
     TokenizerState state = NORMAL;
 
-    char *curr = line;
+    bool building_token;
+
     char *token_start = line_tokenized;
     size_t tok_idx = 0;
-    for (; *curr != '\0'; curr++) {
+
+    size_t line_idx = 0;
+    while (line_idx < len) {
+        char c = line[line_idx];
         switch (state) {
         case NORMAL:
-            if (isspace(*curr)) {
-                if (tok_idx > 0 && line_tokenized[tok_idx - 1] != '\0') {
+            if (isspace(c)) {
+                if (building_token) {
                     line_tokenized[tok_idx++] = '\0';
                     tokens[token_cnt++] = token_start;
                     token_start = line_tokenized + tok_idx;
+                    building_token = false;
                 }
-            } else if (*curr == '\'') {
+            } else if (c == '\\' && line_idx + 1 < len && is_escapable(line[line_idx + 1])) {
+                line_tokenized[tok_idx++] = line[++line_idx];
+                building_token = true;
+            } else if (c == '\'') {
                 state = IN_SINGLE_QUOTES;
-            } else if (*curr == '"') {
+                building_token = true;
+            } else if (c == '"') {
                 state = IN_DOUBLE_QUOTES;
+                building_token = true;
             } else {
-                line_tokenized[tok_idx++] = *curr;
+                line_tokenized[tok_idx++] = c;
+                building_token = true;
             }
             break;
         case IN_SINGLE_QUOTES:
-            if (*curr == '\'') {
+            if (c == '\\' && line_idx + 1 < len && line[line_idx + 1] == '\'') {
+                line_tokenized[tok_idx++] = line[++line_idx];
+            } else if (c == '\'') {
                 state = NORMAL;
             } else {
-                line_tokenized[tok_idx++] = *curr;
+                line_tokenized[tok_idx++] = c;
             }
             break;
         case IN_DOUBLE_QUOTES:
-            if (*curr == '"') {
+            if (c == '\\' && line_idx + 1 < len && line[line_idx + 1] == '"') {
+                line_tokenized[tok_idx++] = line[++line_idx];
+            } else if (c == '"') {
                 state = NORMAL;
             } else {
-                line_tokenized[tok_idx++] = *curr;
+                line_tokenized[tok_idx++] = c;
             }
             break;
         }
@@ -64,13 +84,15 @@ int tokenize_line(char *line, char *line_tokenized, char ***tokens_out, size_t *
             fprintf(stderr, "Shell warning: Max number of arguments reached; ignoring all after '%s'\n", tokens[token_cnt - 1]);
             break;
         }
+
+        line_idx++;
     }
 
     if (state != NORMAL) {
         return PARSE_ERR_UNMATCHED_QUOTE;
     }
 
-    if (tok_idx > 0 && *curr == '\0') {
+    if (building_token) {
         line_tokenized[tok_idx++] = '\0';
         tokens[token_cnt++] = token_start;
     }

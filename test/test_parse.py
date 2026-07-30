@@ -62,7 +62,7 @@ def test_tokenize_escape_single_quotes():
         """)
 
     assert res.returncode == 0
-    assert "b'a" in res.stdout
+    assert "a'b" in res.stdout
 
 
 def test_tokenize_err_unmatched_quote_1():

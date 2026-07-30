@@ -178,7 +178,7 @@ int parse_line(Shell *s, char *line, size_t len, Pipeline *pl_out) {
 
     size_t token_cnt;
     char **tokens = NULL;
-    int status = tokenize_line(line, mem_arena.line_tokenized, &tokens, &token_cnt);
+    int status = tokenize_line(line, len, mem_arena.line_tokenized, &tokens, &token_cnt);
     if (status != PARSE_OK) {
         free_arg_arena(&mem_arena);
         return status;
