@@ -7,6 +7,7 @@ typedef struct Pipeline Pipeline;
 typedef enum {
     PARSE_OK,
     PARSE_ERR_MALLOC,
+    PARSE_ERR_UNMATCHED_QUOTE,
     PARSE_ERR_FILENAME,
     PARSE_ERR_LEADING_PIPE,
     PARSE_ERR_DANGLING_PIPE,

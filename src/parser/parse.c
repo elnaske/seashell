@@ -150,26 +150,44 @@ int parse_command(char ***p_next_token, char **argv_start, char *exit_code_start
     return PARSE_OK;
 }
 
+char *construct_stripped_cmd_line(char *cmd_line_start, char **tokens, size_t token_cnt) {
+    char *next_token_start = cmd_line_start;
+    for (size_t i = 0; i < token_cnt; i++) {
+        size_t token_len = strlen(tokens[i]);
+        memcpy(next_token_start, tokens[i], token_len);
+
+        if (i + 1 < token_cnt) {
+            next_token_start[token_len] = ' ';
+        } else {
+            next_token_start[token_len] = '\0';
+        }
+
+        next_token_start += token_len + 1;
+    }
+
+    return cmd_line_start;
+}
 
 int parse_line(Shell *s, char *line, size_t len, Pipeline *pl_out) {
     if (!s || !line || !pl_out) return -1;
 
-    size_t token_cnt;
-    char **tokens = tokenize_line(line, &token_cnt);
-    if (!tokens) {
+    ArgArena mem_arena;
+    if (arg_arena_init(&mem_arena, len, s->last_status) < 0) {
         return PARSE_ERR_MALLOC;
     }
 
-    if (token_cnt) {
-        ArgArena mem_arena;
-        if (arg_arena_init(&mem_arena, tokens, token_cnt, len, s->last_status) < 0) {
-            free(tokens);
-            return PARSE_ERR_MALLOC;
-        }
+    size_t token_cnt;
+    char **tokens = NULL;
+    int status = tokenize_line(line, len, mem_arena.line_tokenized, &tokens, &token_cnt);
+    if (status != PARSE_OK) {
+        free_arg_arena(&mem_arena);
+        return status;
+    }
 
+    if (token_cnt) {
         Pipeline pl = {0};
         pl.prev_pipe = -1;
-        pl.cmd_line = mem_arena.cmd_line;
+        pl.cmd_line = construct_stripped_cmd_line(mem_arena.cmd_line, tokens, token_cnt);
 
         pl.run_in_bg = *(tokens[token_cnt - 1]) == '&';
         if (pl.run_in_bg) {
@@ -194,6 +212,8 @@ int parse_line(Shell *s, char *line, size_t len, Pipeline *pl_out) {
         }
 
         *pl_out = pl;
+    } else {
+        free_arg_arena(&mem_arena);
     }
 
     free(tokens);
@@ -207,6 +227,9 @@ void print_syntax_error(int status) {
     case PARSE_ERR_MALLOC:
         err = "memory allocation failure";
         break;
+    case PARSE_ERR_UNMATCHED_QUOTE:
+        err = "unmatched quote";
+        break;
     case PARSE_ERR_FILENAME:
         err = "missing filename";
         break;
@@ -219,7 +242,10 @@ void print_syntax_error(int status) {
     case PARSE_ERR_AMPERSAND:
         err = "non-final '&'";
         break;
-    default:
+    case -1:
+        err = "internal error";
+        break;
+    case PARSE_OK:
         return;
     }
 

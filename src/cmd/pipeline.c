@@ -87,21 +87,28 @@ int run_pipeline(Shell *s, Pipeline *pl) {
     return job_status;
 }
 
-int arg_arena_init(ArgArena *arena, char **tokens, size_t token_cnt, size_t cmd_line_len, int last_status) {
+int arg_arena_init(ArgArena *arena, size_t cmd_line_len, int last_status) {
     if (!arena) return -1;
 
-    size_t max_argv_len = sizeof(tokens) * (token_cnt + 1);
+    size_t max_argv_len = sizeof(char *) * (MAX_ARGS + 1);
     size_t exit_code_str_len = sizeof(char) * 4;                // three digits (8-bits) + null terminator
-    size_t max_stripped_line_len = sizeof(char) * (cmd_line_len + 1); // for printing the job later 
+    size_t max_line_len = sizeof(char) * (cmd_line_len + 1);
 
     /*
-     * Arena allocation that holds args (pointers into line), a NULL separator, and the previous exit code (last 4 bytes; for expanding $?)
+     * Arena allocation that holds :
+            argv pointers (NULL terminated)
+            previous exit code (last 4 bytes; for expanding $?)
+            tokenized line
+            full command line
+     *
      * i.e.
-     * arena: [[argv pointers], NULL, [padding], exit code (str), stripped command line (str)]
-     *         |  |   |
-     * line:  [..0...0.....0]
+     * 
+     * [[argv pointers], NULL, [padding], exit code (str), tokens (str), stripped command line (str)]
+     *   |                                                 ^
+     *   |-------------------------------------------------|
+     *
      */
-    void *mem_arena = malloc(max_argv_len + exit_code_str_len + max_stripped_line_len);
+    void *mem_arena = malloc(max_argv_len + exit_code_str_len + 2 * max_line_len);
     if (!mem_arena) {
         return -1;
     }
@@ -111,26 +118,22 @@ int arg_arena_init(ArgArena *arena, char **tokens, size_t token_cnt, size_t cmd_
     snprintf(exit_code_start, exit_code_str_len, "%d", last_status);
 
     // copy tokens
-    char *cmd_line_start = exit_code_start + exit_code_str_len;
-    char *next_token_start = cmd_line_start;
-    for (size_t i = 0; i < token_cnt; i++) {
-        size_t token_len = strlen(tokens[i]);
-        memcpy(next_token_start, tokens[i], token_len);
-
-        if (i + 1 < token_cnt) {
-            next_token_start[token_len] = ' ';
-        } else {
-            next_token_start[token_len] = '\0';
-        }
-
-        next_token_start += token_len + 1;
-    }
+    char *tokenized_line_start = exit_code_start + exit_code_str_len;
+    char *cmd_line_start = tokenized_line_start + max_line_len;
 
     arena->args = mem_arena;
     arena->last_status = exit_code_start;
+    arena->line_tokenized = tokenized_line_start;
     arena->cmd_line = cmd_line_start;
 
     return 0;
+}
+
+void free_arg_arena(ArgArena *arena) {
+    if (!arena) return;
+    free(arena->args);
+    ArgArena nulled = {0};
+    *arena = nulled;
 }
 
 void free_pipeline(Pipeline *pl) {

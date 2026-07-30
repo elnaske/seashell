@@ -9,11 +9,11 @@ typedef struct Pipeline Pipeline;
 
 typedef struct Shell {
     JobTable jt;
+    char **cmd_list;
     pid_t pgid;
     volatile pid_t fg_pgid;
     uint8_t last_status;
     char cwd[PATH_MAX];
-    char **cmd_list;
     bool running;
 } Shell;
 
