@@ -5,6 +5,84 @@ import time
 from .utils import run_shell, run_shell_process
 
 
+def test_tokenize_double_quotes():
+    res = run_shell("""\
+        printf "%s" "abc" | rev
+        exit
+        """)
+
+    assert res.returncode == 0
+    assert "\"cba\"" not in res.stdout
+
+
+def test_tokenize_single_quotes():
+    res = run_shell("""\
+        printf "%s" 'abc' | rev
+        exit
+        """)
+
+    assert res.returncode == 0
+    assert "\'cba\'" not in res.stdout
+
+
+def test_tokenize_nested_quotes_1():
+    res = run_shell("""\
+        printf "%s" "'a" | rev
+        exit
+        """)
+
+    assert res.returncode == 0
+    assert "\"a'\"" not in res.stdout
+
+
+def test_tokenize_nested_quotes_2():
+    res = run_shell("""\
+        printf "%s" '"a' | rev
+        exit
+        """)
+
+    assert res.returncode == 0
+    assert '\'a"\'' not in res.stdout
+
+
+def test_tokenize_escape_double_quotes():
+    res = run_shell("""\
+        echo a\\\"b
+        exit
+        """)
+
+    assert res.returncode == 0
+    assert 'a"b' in res.stdout
+
+
+def test_tokenize_escape_single_quotes():
+    res = run_shell("""\
+        echo a\\\'b
+        exit
+        """)
+
+    assert res.returncode == 0
+    assert "b'a" in res.stdout
+
+
+def test_tokenize_err_unmatched_quote_1():
+    res = run_shell("""\
+        echo "a 
+        exit
+        """)
+
+    assert res.returncode != 0
+
+
+def test_tokenize_err_unmatched_quote_2():
+    res = run_shell("""\
+        echo a'
+        exit
+        """)
+
+    assert res.returncode != 0
+
+
 def test_parse_err_missing_file():
     res = run_shell("""\
         echo test >

@@ -1,4 +1,4 @@
 #pragma once
 #include <stddef.h>
 
-char **tokenize_line(char *line, char *line_tokenized, size_t *cnt_out);
+int tokenize_line(char *line, char *line_tokenized, char ***tokens_out, size_t *cnt_out);

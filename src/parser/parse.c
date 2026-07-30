@@ -177,10 +177,11 @@ int parse_line(Shell *s, char *line, size_t len, Pipeline *pl_out) {
     }
 
     size_t token_cnt;
-    char **tokens = tokenize_line(line, mem_arena.line_tokenized, &token_cnt);
-    if (!tokens) {
+    char **tokens = NULL;
+    int status = tokenize_line(line, mem_arena.line_tokenized, &tokens, &token_cnt);
+    if (status != PARSE_OK) {
         free_arg_arena(&mem_arena);
-        return PARSE_ERR_MALLOC;
+        return status;
     }
 
     if (token_cnt) {
@@ -226,6 +227,9 @@ void print_syntax_error(int status) {
     case PARSE_ERR_MALLOC:
         err = "memory allocation failure";
         break;
+    case PARSE_ERR_UNMATCHED_QUOTE:
+        err = "unmatched quote";
+        break;
     case PARSE_ERR_FILENAME:
         err = "missing filename";
         break;
@@ -238,7 +242,7 @@ void print_syntax_error(int status) {
     case PARSE_ERR_AMPERSAND:
         err = "non-final '&'";
         break;
-    default:
+    case PARSE_OK:
         return;
     }
 
