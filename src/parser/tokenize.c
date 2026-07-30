@@ -21,18 +21,19 @@ static bool is_escapable(char c) {
 }
 
 int tokenize_line(char *line, size_t len, char *line_tokenized, char ***tokens_out, size_t *cnt_out) {
-    if (!line || !line_tokenized || !tokens_out) return -1;
+    if (!line || !line_tokenized || !tokens_out || !cnt_out) return -1;
 
     char **tokens = malloc(sizeof(char *) * (MAX_ARGS + 1)); // terminated by NULL ptr
     if (!tokens) return -1;
 
     size_t token_cnt = 0;
-    TokenizerState state = NORMAL;
-
-    bool building_token;
 
     char *token_start = line_tokenized;
     size_t tok_idx = 0;
+
+    TokenizerState state = NORMAL;
+    char quote_kind;
+    bool building_token = false;
 
     size_t line_idx = 0;
     while (line_idx < len) {
@@ -61,18 +62,12 @@ int tokenize_line(char *line, size_t len, char *line_tokenized, char ***tokens_o
             }
             break;
         case IN_SINGLE_QUOTES:
-            if (c == '\\' && line_idx + 1 < len && line[line_idx + 1] == '\'') {
-                line_tokenized[tok_idx++] = line[++line_idx];
-            } else if (c == '\'') {
-                state = NORMAL;
-            } else {
-                line_tokenized[tok_idx++] = c;
-            }
-            break;
         case IN_DOUBLE_QUOTES:
-            if (c == '\\' && line_idx + 1 < len && line[line_idx + 1] == '"') {
+            quote_kind = (state == IN_SINGLE_QUOTES) ? '\'' : '"';
+
+            if (c == '\\' && line_idx + 1 < len && line[line_idx + 1] == quote_kind) {
                 line_tokenized[tok_idx++] = line[++line_idx];
-            } else if (c == '"') {
+            } else if (c == quote_kind) {
                 state = NORMAL;
             } else {
                 line_tokenized[tok_idx++] = c;
@@ -97,12 +92,9 @@ int tokenize_line(char *line, size_t len, char *line_tokenized, char ***tokens_o
         tokens[token_cnt++] = token_start;
     }
 
-    if (cnt_out) {
-        *cnt_out = token_cnt;
-    }
-
     tokens[token_cnt] = NULL;
     *tokens_out = tokens;
+    *cnt_out = token_cnt;
 
     return PARSE_OK;
 }

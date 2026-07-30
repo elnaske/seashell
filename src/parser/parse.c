@@ -242,6 +242,9 @@ void print_syntax_error(int status) {
     case PARSE_ERR_AMPERSAND:
         err = "non-final '&'";
         break;
+    case -1:
+        err = "internal error";
+        break;
     case PARSE_OK:
         return;
     }
