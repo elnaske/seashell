@@ -9,7 +9,6 @@
 #include "../cmd/commands.h"
 #include "../cmd/pipeline.h"
 #include "../core/shell.h"
-#include "../options.h"
 #include "../sys/redirect.h"
 #include "tokenize.h"
 

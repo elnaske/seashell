@@ -6,7 +6,6 @@
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 #include "../core/shell.h"
 #include "syscall_wrappers.h"

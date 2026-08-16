@@ -1,8 +1,6 @@
 #include "shell.h"
 
 #include <limits.h>
-#include <readline/history.h>
-#include <readline/readline.h>
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -10,12 +8,14 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <readline/history.h>
+#include <readline/readline.h>
+
 #include "../cmd/pipeline.h"
 #include "../options.h"
 #include "../parser/parse.h"
 #include "../sys/redirect.h"
 #include "../sys/sighandlers.h"
-#include "../sys/syscall_wrappers.h"
 #include "completions.h"
 #include "job_table.h"
 
@@ -70,11 +70,9 @@ void free_shell(Shell *s) {
 static inline void update_prompt(Shell *s, char *buf, size_t buf_size) {
     snprintf(
         buf,
-        buf_size, 
-        PROMPT_COL_1 "seashell" COL_CLR ":" 
-        PROMPT_COL_2 "%s" COL_CLR "$ ",
-        s->cwd
-    );
+        buf_size,
+        PROMPT_COL_1 "seashell" COL_CLR ":" PROMPT_COL_2 "%s" COL_CLR "$ ",
+        s->cwd);
 }
 
 static inline void set_last_status(Shell *s, int status) {
