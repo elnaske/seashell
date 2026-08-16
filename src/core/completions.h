@@ -1,6 +1,6 @@
 #pragma once
 
-void free_command_list();
+void free_command_list(char **cmd_list);
 
 char **build_command_list();
 
