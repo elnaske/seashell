@@ -11,6 +11,7 @@
 extern const Builtin g_builtins[];
 extern Shell shell;
 
+// Dynamic array for caching commands for autocompletion
 typedef struct {
     char **entries;
     size_t len;

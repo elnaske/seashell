@@ -17,7 +17,7 @@
 #include "../sys/sighandlers.h"
 #include "../sys/syscall_wrappers.h"
 #include "completions.h"
-#include "jobs.h"
+#include "job_table.h"
 
 #ifdef COLORED_PROMPT
 #define COL_CLR "\033[0m"

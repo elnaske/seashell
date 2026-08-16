@@ -1,4 +1,4 @@
-#include "jobs.h"
+#include "job_table.h"
 
 #include <signal.h>
 #include <stdbool.h>

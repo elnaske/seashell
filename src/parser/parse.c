@@ -171,8 +171,8 @@ char *construct_stripped_cmd_line(char *cmd_line_start, char **tokens, size_t to
 int parse_line(Shell *s, char *line, size_t len, Pipeline *pl_out) {
     if (!s || !line || !pl_out) return -1;
 
-    ArgArena mem_arena;
-    if (arg_arena_init(&mem_arena, len, s->last_status) < 0) {
+    PipelineMemArena mem_arena;
+    if (pipeline_arena_init(&mem_arena, len, s->last_status) < 0) {
         return PARSE_ERR_MALLOC;
     }
 

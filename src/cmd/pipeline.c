@@ -87,27 +87,31 @@ int run_pipeline(Shell *s, Pipeline *pl) {
     return job_status;
 }
 
-int arg_arena_init(ArgArena *arena, size_t cmd_line_len, int last_status) {
+/* Initializes a memory arena that holds the following:
+ *  - argv pointers for calling execve() (NULL terminated)
+ *  - previous exit code as a str (for expanding $?)
+ *  - tokenized line, pointed to by the argv pointers
+ *  - stripped command line (displayed when running `jobs`, must be separate from tokens
+ *    since the latter are null-terminated)
+ * 
+ * Since all of these have the same lifetime (one REPL iteration), 
+ * we only need to malloc and free once.
+ * 
+ * The memory layout looks like:
+ * [[argv pointers], NULL, [padding to MAX_ARGS], exit code, tokens, stripped line]
+ *   |                                                       ^
+ *   |-------------------------------------------------------|
+ * 
+ * Note that this function only initializes the exit code.
+ * Argv,tokens and the stripped line are added during parsing.
+ */
+int pipeline_arena_init(PipelineMemArena *arena, size_t cmd_line_len, int last_status) {
     if (!arena) return -1;
 
     size_t max_argv_len = sizeof(char *) * (MAX_ARGS + 1);
-    size_t exit_code_str_len = sizeof(char) * 4;                // three digits (8-bits) + null terminator
+    size_t exit_code_str_len = sizeof(char) * 4; // three digits (8-bits) + null terminator
     size_t max_line_len = sizeof(char) * (cmd_line_len + 1);
 
-    /*
-     * Arena allocation that holds :
-            argv pointers (NULL terminated)
-            previous exit code (last 4 bytes; for expanding $?)
-            tokenized line
-            full command line
-     *
-     * i.e.
-     * 
-     * [[argv pointers], NULL, [padding], exit code (str), tokens (str), stripped command line (str)]
-     *   |                                                 ^
-     *   |-------------------------------------------------|
-     *
-     */
     void *mem_arena = malloc(max_argv_len + exit_code_str_len + 2 * max_line_len);
     if (!mem_arena) {
         return -1;
@@ -117,7 +121,6 @@ int arg_arena_init(ArgArena *arena, size_t cmd_line_len, int last_status) {
     char *exit_code_start = (char *)mem_arena + max_argv_len;
     snprintf(exit_code_start, exit_code_str_len, "%d", last_status);
 
-    // copy tokens
     char *tokenized_line_start = exit_code_start + exit_code_str_len;
     char *cmd_line_start = tokenized_line_start + max_line_len;
 
@@ -129,10 +132,10 @@ int arg_arena_init(ArgArena *arena, size_t cmd_line_len, int last_status) {
     return 0;
 }
 
-void free_arg_arena(ArgArena *arena) {
+void free_arg_arena(PipelineMemArena *arena) {
     if (!arena) return;
     free(arena->args);
-    ArgArena nulled = {0};
+    PipelineMemArena nulled = {0};
     *arena = nulled;
 }
 

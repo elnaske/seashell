@@ -15,9 +15,9 @@ typedef enum JobState {
 } JobState;
 
 typedef struct JobTableEntry {
-    size_t cmd_cnt;
+    size_t cmd_cnt; // Number of commands in the pipeline
     pid_t pgid;
-    pid_t last_pid;
+    pid_t last_pid; // pid of the last command in the pipeline. Waiting on it ensures that _all_ commands are done.
     JobState state;
 } JobTableEntry;
 
